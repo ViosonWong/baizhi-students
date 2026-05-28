@@ -1,0 +1,64 @@
+- main [ref=e3]:
+  - complementary [ref=e4]:
+    - button "百智学生版首页" [ref=e5] [cursor=pointer]:
+      - img [ref=e6]
+    - button "首页" [ref=e18] [cursor=pointer]:
+      - img [ref=e19]
+      - generic [ref=e22]: 首页
+    - button "今日课堂" [active] [ref=e23] [cursor=pointer]:
+      - img [ref=e24]
+      - generic [ref=e27]: 今日课堂
+    - button "AI 笔记" [ref=e28] [cursor=pointer]:
+      - img [ref=e29]
+      - generic [ref=e32]: AI 笔记
+    - button "校园知识广场" [ref=e33] [cursor=pointer]:
+      - img [ref=e34]
+      - generic [ref=e38]: 校园知识广场
+    - button "积分钱包" [ref=e39] [cursor=pointer]:
+      - img [ref=e40]
+      - generic [ref=e44]: 积分钱包
+    - button "立即登录" [ref=e45] [cursor=pointer]:
+      - img [ref=e47]
+      - strong [ref=e51]: 立即登录
+  - generic [ref=e52]:
+    - generic [ref=e54]:
+      - paragraph [ref=e55]: 百智学生版
+      - heading "今日课堂" [level=1] [ref=e367]
+    - generic [ref=e369]:
+      - img [ref=e371]
+      - generic [ref=e375]:
+        - heading "开启一节新的课堂记录" [level=3] [ref=e376]
+        - paragraph [ref=e377]: 上课时专心听讲就好，剩下的交给小智。课堂声音、板书照片和重点片段会被整理成可复习、可追问的 AI 笔记。
+      - button "开始录音" [ref=e378] [cursor=pointer]:
+        - img [ref=e379]
+        - text: 开始录音
+  - complementary [ref=e331]:
+    - generic [ref=e332]:
+      - generic [ref=e333]:
+        - generic [ref=e334]:
+          - strong [ref=e335]: 小智 Agent
+          - generic [ref=e336]: 准备帮你开启下一节课
+        - img [ref=e337]
+      - generic [ref=e340]:
+        - generic [ref=e341]: 登录
+        - generic [ref=e343]: 授权录音
+        - generic [ref=e345]: 实时转写
+        - generic [ref=e347]: 补全属性
+        - generic [ref=e349]: 生成笔记
+      - generic [ref=e351]:
+        - generic [ref=e352]:
+          - text: 小智
+          - paragraph [ref=e353]: 你好，我是小智。你可以先直接开始录音，结束后我会提醒你补全课堂属性，并把音频、照片和转写内容合并入库。
+        - generic [ref=e354]:
+          - text: 你
+          - paragraph [ref=e355]: 录音时可以先不填课程信息吗？
+        - generic [ref=e356]:
+          - text: 小智
+          - paragraph [ref=e357]: 可以。录音完成后我会弹出属性补全窗，学校、教室、老师和课程名称会用于归档与发布。
+      - generic [ref=e358]:
+        - button "考试预测" [ref=e359] [cursor=pointer]
+        - button "去广场找笔记" [ref=e360] [cursor=pointer]
+      - generic [ref=e361]:
+        - textbox "问小智：帮我解释这个知识点..." [ref=e362]
+        - button [ref=e363] [cursor=pointer]:
+          - img [ref=e364]

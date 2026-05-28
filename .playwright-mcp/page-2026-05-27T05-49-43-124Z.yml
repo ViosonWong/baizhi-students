@@ -1,0 +1,119 @@
+- main [ref=e3]:
+  - complementary [ref=e4]:
+    - button "百智学生版首页" [ref=e5] [cursor=pointer]:
+      - img [ref=e6]
+    - navigation [ref=e18]:
+      - button "首页" [ref=e19] [cursor=pointer]:
+        - img [ref=e20]
+        - generic [ref=e23]: 首页
+      - button "今日课堂" [ref=e24] [cursor=pointer]:
+        - img [ref=e25]
+        - generic [ref=e28]: 今日课堂
+      - button "AI 笔记" [ref=e29] [cursor=pointer]:
+        - img [ref=e30]
+        - generic [ref=e33]: AI 笔记
+      - button "校园知识广场" [ref=e34] [cursor=pointer]:
+        - img [ref=e35]
+        - generic [ref=e39]: 校园知识广场
+      - button "积分钱包" [active] [ref=e40] [cursor=pointer]:
+        - img [ref=e41]
+        - generic [ref=e45]: 积分钱包
+    - button "快捷录音" [ref=e46] [cursor=pointer]:
+      - img [ref=e48]
+  - generic [ref=e51]:
+    - generic [ref=e52]:
+      - generic [ref=e53]:
+        - generic [ref=e54]: BAIZHI · STUDENT
+        - generic [ref=e56]: v1.0 · 学生工作台
+      - heading "积分钱包" [level=1] [ref=e442]
+    - generic [ref=e58]:
+      - generic [ref=e59]: 小智在线
+      - button "搜索" [ref=e61] [cursor=pointer]:
+        - img [ref=e62]
+      - button "通知" [ref=e65] [cursor=pointer]:
+        - img [ref=e66]
+      - button "未登录 立即登录" [ref=e70] [cursor=pointer]:
+        - img [ref=e72]
+        - generic [ref=e76]:
+          - generic [ref=e77]: 未登录
+          - strong [ref=e78]: 立即登录
+  - generic [ref=e443]:
+    - generic [ref=e444]:
+      - generic [ref=e445]:
+        - paragraph [ref=e446]: 积分
+        - heading "420" [level=2] [ref=e447]
+      - button "积分充值" [ref=e448] [cursor=pointer]:
+        - img [ref=e449]
+        - text: 积分充值
+    - generic [ref=e452]:
+      - generic [ref=e453]:
+        - generic [ref=e454]: 积分
+        - strong [ref=e455]: "37400"
+      - generic [ref=e456]:
+        - generic [ref=e457]: 会员积分
+        - strong [ref=e458]: "6000"
+      - generic [ref=e459]:
+        - generic [ref=e460]: 任务积分
+        - strong [ref=e461]: "1400"
+      - generic [ref=e462]:
+        - generic [ref=e463]: 充值积分
+        - strong [ref=e464]: "0"
+      - generic [ref=e465]:
+        - generic [ref=e466]: 赠送积分
+        - strong [ref=e467]: "30000"
+      - generic [ref=e468]: 本月将过期积分 0
+    - generic [ref=e469]:
+      - generic [ref=e470]:
+        - generic [ref=e471]:
+          - paragraph [ref=e472]: 积分明细
+          - heading "收支记录" [level=2] [ref=e473]
+        - generic [ref=e474]:
+          - button "全部" [ref=e475] [cursor=pointer]
+          - button "获取" [ref=e476] [cursor=pointer]
+          - button "支出" [ref=e477] [cursor=pointer]
+      - generic [ref=e478]:
+        - generic [ref=e479]: 开通会员奖励
+        - strong [ref=e480]: "+6000"
+        - time [ref=e481]: 2026-05-18 10:15:53
+      - generic [ref=e482]:
+        - generic [ref=e483]: 平台赠送
+        - strong [ref=e484]: "+30000"
+        - time [ref=e485]: 2026-04-03 00:18:12
+      - generic [ref=e486]:
+        - generic [ref=e487]: 购买医学统计学考前重点包
+        - strong [ref=e488]: "-520"
+        - time [ref=e489]: 2026-05-26 14:52:09
+      - generic [ref=e490]:
+        - generic [ref=e491]: 注册奖励
+        - strong [ref=e492]: "+1000"
+        - time [ref=e493]: 2026-04-02 11:35:34
+  - complementary [ref=e354]:
+    - generic [ref=e355]:
+      - generic [ref=e356]:
+        - generic [ref=e357]:
+          - strong [ref=e358]: 小智 Agent
+          - generic [ref=e359]: 准备帮你开启下一节课
+        - img [ref=e360]
+      - generic [ref=e363]:
+        - generic [ref=e364]: 登录
+        - generic [ref=e366]: 授权录音
+        - generic [ref=e368]: 实时转写
+        - generic [ref=e370]: 补全属性
+        - generic [ref=e372]: 生成笔记
+      - generic [ref=e374]:
+        - generic [ref=e375]:
+          - text: 小智
+          - paragraph [ref=e376]: 你好，我是小智。你可以先直接开始录音，结束后我会提醒你补全课堂属性，并把音频、照片和转写内容合并入库。
+        - generic [ref=e377]:
+          - text: 你
+          - paragraph [ref=e378]: 录音时可以先不填课程信息吗？
+        - generic [ref=e379]:
+          - text: 小智
+          - paragraph [ref=e380]: 可以。录音完成后我会弹出属性补全窗，学校、教室、老师和课程名称会用于归档与发布。
+      - generic [ref=e381]:
+        - button "考试预测" [ref=e382] [cursor=pointer]
+        - button "去广场找笔记" [ref=e383] [cursor=pointer]
+      - generic [ref=e384]:
+        - textbox "问小智：帮我解释这个知识点..." [ref=e385]
+        - button [ref=e386] [cursor=pointer]:
+          - img [ref=e387]

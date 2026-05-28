@@ -1,0 +1,125 @@
+- main [ref=e3]:
+  - complementary [ref=e4]:
+    - button "百智学生版首页" [ref=e5] [cursor=pointer]:
+      - img [ref=e6]
+    - navigation [ref=e18]:
+      - button "首页" [ref=e19] [cursor=pointer]:
+        - img [ref=e20]
+        - generic [ref=e23]: 首页
+      - button "今日课堂" [ref=e24] [cursor=pointer]:
+        - img [ref=e25]
+        - generic [ref=e28]: 今日课堂
+      - button "AI 笔记" [active] [ref=e29] [cursor=pointer]:
+        - img [ref=e30]
+        - generic [ref=e33]: AI 笔记
+      - button "知识广场" [ref=e34] [cursor=pointer]:
+        - img [ref=e35]
+        - generic [ref=e39]: 知识广场
+      - button "积分" [ref=e40] [cursor=pointer]:
+        - img [ref=e41]
+        - generic [ref=e45]: 积分
+    - button "快捷录音" [ref=e46] [cursor=pointer]:
+      - img [ref=e48]
+  - generic [ref=e51]:
+    - generic [ref=e52]:
+      - generic [ref=e54]: 百智学生版
+      - heading "AI 笔记资产库" [level=1] [ref=e315]
+    - generic [ref=e57]:
+      - generic [ref=e58]: 小智在线
+      - button "搜索" [ref=e60] [cursor=pointer]:
+        - img [ref=e61]
+      - button "通知" [ref=e64] [cursor=pointer]:
+        - img [ref=e65]
+      - button "我 已登录 138****8000" [ref=e252] [cursor=pointer]:
+        - generic [ref=e70]: 我
+        - generic [ref=e75]:
+          - generic [ref=e76]: 已登录
+          - strong [ref=e77]: 138****8000
+  - generic [ref=e316]:
+    - generic [ref=e317]:
+      - generic [ref=e319]:
+        - heading "课堂文件" [level=2] [ref=e320]
+        - paragraph [ref=e321]: 共 6 条
+      - generic [ref=e322]:
+        - article [ref=e323] [cursor=pointer]:
+          - generic [ref=e324]:
+            - strong [ref=e325]: 高数第 8 讲：多元函数极值
+            - generic [ref=e326]: AI 总结中
+        - article [ref=e327] [cursor=pointer]:
+          - generic [ref=e328]:
+            - strong [ref=e329]: 数据结构：图的遍历
+            - generic [ref=e330]: 上传至云端
+        - article [ref=e331] [cursor=pointer]:
+          - generic [ref=e332]:
+            - strong [ref=e333]: 宏观经济学：通胀与就业
+            - generic [ref=e334]: 转码中
+        - article [ref=e335] [cursor=pointer]:
+          - generic [ref=e336]:
+            - strong [ref=e337]: 英语听力：学术讲座精听
+            - generic [ref=e338]: 暂停中
+        - article [ref=e339] [cursor=pointer]:
+          - generic [ref=e340]:
+            - strong [ref=e341]: 线性代数：矩阵特征值
+            - generic [ref=e342]: 录音中
+        - article [ref=e343] [cursor=pointer]:
+          - generic [ref=e344]:
+            - strong [ref=e345]: 计算机网络：TCP 拥塞控制
+            - generic [ref=e346]: 已入库
+    - generic [ref=e347]:
+      - generic [ref=e348]:
+        - generic [ref=e349]:
+          - heading "多元函数极值" [level=2] [ref=e350]
+          - paragraph [ref=e351]: 高数第 8 讲 · 34 分 24 秒
+        - button "发布到知识广场" [ref=e352] [cursor=pointer]:
+          - img [ref=e353]
+          - text: 发布到知识广场
+      - generic [ref=e357]:
+        - button [ref=e358] [cursor=pointer]:
+          - img [ref=e359]
+        - generic [ref=e362]: 0:30
+        - generic [ref=e365]: 34:24
+        - button "1x" [ref=e366] [cursor=pointer]
+      - generic [ref=e367]:
+        - button "转译文本" [ref=e368] [cursor=pointer]
+        - button "智能总结" [ref=e369] [cursor=pointer]
+        - button "测试题集" [ref=e370] [cursor=pointer]
+        - button "复习建议" [ref=e371] [cursor=pointer]
+      - generic [ref=e373]:
+        - article [ref=e374]:
+          - time [ref=e375]: 14:30:20 - 14:30:48
+          - paragraph [ref=e376]: 各位好，今天我们进入多元函数极值。先记住一个判断顺序：第一，看有没有约束条件；第二，找驻点；第三，再决定用 Hessian 判别还是拉格朗日乘子法。
+        - article [ref=e377]:
+          - time [ref=e378]: 14:30:49 - 14:31:08
+          - paragraph [ref=e379]: 老师，如果题目只给了一个函数，没有写约束，是不是就直接对 x 和 y 分别求偏导，然后令它们等于零？
+        - article [ref=e380]:
+          - time [ref=e381]: 14:31:09 - 14:31:42
+          - paragraph [ref=e382]: 对。无约束极值先求一阶偏导，解出所有驻点。注意，驻点只是候选点，不等于一定有极值。接下来要看二阶偏导组成的 Hessian 矩阵，也就是 A、B、C 这三个量。
+        - article [ref=e383]:
+          - time [ref=e384]: 14:31:43 - 14:32:16
+          - paragraph [ref=e385]: 那如果 Hessian 判别里面 B 平方减 AC 等于零，这种临界情况考试里应该怎么处理？
+        - article [ref=e386]:
+          - time [ref=e387]: 14:32:17 - 14:33:05
+          - paragraph [ref=e388]: 等于零时二阶判别法失效，不能直接下结论。你们要回到函数定义，沿不同方向代入观察增减性。考试里最容易扣分的地方，就是看到判别式为零还强行写极大或极小。
+        - article [ref=e389]:
+          - time [ref=e390]: 14:33:06 - 14:33:34
+          - paragraph [ref=e391]: 如果出现约束条件，比如 x 平方加 y 平方等于 1，就不要直接套 Hessian。先构造拉格朗日函数，再把原函数和约束方程一起联立求解。
+  - complementary [ref=e290]:
+    - generic [ref=e291]:
+      - generic [ref=e292]:
+        - generic [ref=e293]:
+          - strong [ref=e294]: 小智
+          - generic [ref=e295]: 你的 AI 学习搭子，随时陪你聊
+        - img [ref=e297]
+      - generic [ref=e300]:
+        - generic [ref=e301]:
+          - paragraph [ref=e302]: Hi，我是小智 👋
+          - paragraph [ref=e303]: 你的 AI 学习搭子。上完课、做完题，把整理的事情交给我， 你可以随时来这里追问任何一句没听懂的话。
+        - generic [ref=e304]:
+          - generic [ref=e305]: 不知道问啥？试试：
+          - button "今天讲了什么？" [ref=e306] [cursor=pointer]
+          - button "帮我出 5 道复习题" [ref=e307] [cursor=pointer]
+          - button "把这一节讲给我听" [ref=e308] [cursor=pointer]
+      - generic [ref=e309]:
+        - textbox "问小智任何一句听不懂的话…" [ref=e310]
+        - button "发送" [ref=e311] [cursor=pointer]:
+          - img [ref=e312]

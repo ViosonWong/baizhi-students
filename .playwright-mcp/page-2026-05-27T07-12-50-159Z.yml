@@ -1,0 +1,113 @@
+- main [ref=e3]:
+  - complementary [ref=e4]:
+    - button "百智学生版首页" [ref=e5] [cursor=pointer]:
+      - img [ref=e6]
+    - navigation [ref=e18]:
+      - button "首页" [ref=e19] [cursor=pointer]:
+        - img [ref=e20]
+        - generic [ref=e23]: 首页
+      - button "今日课堂" [ref=e24] [cursor=pointer]:
+        - img [ref=e25]
+        - generic [ref=e28]: 今日课堂
+      - button "AI 笔记" [ref=e29] [cursor=pointer]:
+        - img [ref=e30]
+        - generic [ref=e33]: AI 笔记
+      - button "知识广场" [ref=e34] [cursor=pointer]:
+        - img [ref=e35]
+        - generic [ref=e39]: 知识广场
+      - button "积分" [ref=e40] [cursor=pointer]:
+        - img [ref=e41]
+        - generic [ref=e45]: 积分
+    - button "快捷录音" [ref=e46] [cursor=pointer]:
+      - img [ref=e48]
+  - generic [ref=e51]:
+    - generic [ref=e52]:
+      - generic [ref=e54]: 百智学生版
+      - heading "AI 笔记资产库" [level=1] [ref=e315]
+    - generic [ref=e57]:
+      - generic [ref=e58]: 小智在线
+      - button "搜索" [ref=e60] [cursor=pointer]:
+        - img [ref=e61]
+      - button "通知" [ref=e64] [cursor=pointer]:
+        - img [ref=e65]
+      - button "我 已登录 138****8000" [ref=e252] [cursor=pointer]:
+        - generic [ref=e70]: 我
+        - generic [ref=e75]:
+          - generic [ref=e76]: 已登录
+          - strong [ref=e77]: 138****8000
+  - generic [ref=e316]:
+    - generic [ref=e317]:
+      - generic [ref=e319]:
+        - heading "课堂文件" [level=2] [ref=e320]
+        - paragraph [ref=e321]: 共 6 条
+      - generic [ref=e322]:
+        - article [ref=e323] [cursor=pointer]:
+          - generic [ref=e324]:
+            - strong [ref=e325]: 高数第 8 讲：多元函数极值
+            - generic [ref=e326]: AI 总结中
+        - article [ref=e327] [cursor=pointer]:
+          - generic [ref=e328]:
+            - strong [ref=e329]: 数据结构：图的遍历
+            - generic [ref=e330]: 上传至云端
+        - article [ref=e331] [cursor=pointer]:
+          - generic [ref=e332]:
+            - strong [ref=e333]: 宏观经济学：通胀与就业
+            - generic [ref=e334]: 转码中
+        - article [ref=e335] [cursor=pointer]:
+          - generic [ref=e336]:
+            - strong [ref=e337]: 英语听力：学术讲座精听
+            - generic [ref=e338]: 暂停中
+        - article [ref=e339] [cursor=pointer]:
+          - generic [ref=e340]:
+            - strong [ref=e341]: 线性代数：矩阵特征值
+            - generic [ref=e342]: 录音中
+        - article [ref=e343] [cursor=pointer]:
+          - generic [ref=e344]:
+            - strong [ref=e345]: 计算机网络：TCP 拥塞控制
+            - generic [ref=e346]: 已入库
+    - generic [ref=e347]:
+      - generic [ref=e348]:
+        - generic [ref=e349]:
+          - heading "多元函数极值" [level=2] [ref=e350]
+          - paragraph [ref=e351]: 高数第 8 讲 · 34 分 24 秒
+        - button "发布到知识广场" [ref=e352] [cursor=pointer]:
+          - img [ref=e353]
+          - text: 发布到知识广场
+      - generic [ref=e357]:
+        - button [ref=e358] [cursor=pointer]:
+          - img [ref=e359]
+        - generic [ref=e362]: 0:30
+        - generic [ref=e365]: 34:24
+        - button "1x" [ref=e366] [cursor=pointer]
+      - generic [ref=e367]:
+        - button "转译文本" [ref=e368] [cursor=pointer]
+        - button "智能总结" [ref=e369] [cursor=pointer]
+        - button "测试题集" [active] [ref=e370] [cursor=pointer]
+        - button "复习建议" [ref=e371] [cursor=pointer]
+      - generic [ref=e457]:
+        - img [ref=e459]
+        - heading "还没有测试题集" [level=3] [ref=e466]
+        - paragraph [ref=e467]: 基于课堂内容自动生成 5–10 道随堂练习，做完即时校对。
+        - button "生成测试题集" [ref=e468] [cursor=pointer]:
+          - img [ref=e469]
+          - text: 生成测试题集
+  - complementary [ref=e290]:
+    - generic [ref=e291]:
+      - generic [ref=e292]:
+        - generic [ref=e293]:
+          - strong [ref=e294]: 小智
+          - generic [ref=e295]: 你的 AI 学习搭子，随时陪你聊
+        - img [ref=e297]
+      - generic [ref=e300]:
+        - generic [ref=e301]:
+          - paragraph [ref=e302]: Hi，我是小智 👋
+          - paragraph [ref=e303]: 你的 AI 学习搭子。上完课、做完题，把整理的事情交给我， 你可以随时来这里追问任何一句没听懂的话。
+        - generic [ref=e304]:
+          - generic [ref=e305]: 不知道问啥？试试：
+          - button "今天讲了什么？" [ref=e306] [cursor=pointer]
+          - button "帮我出 5 道复习题" [ref=e307] [cursor=pointer]
+          - button "把这一节讲给我听" [ref=e308] [cursor=pointer]
+      - generic [ref=e309]:
+        - textbox "问小智任何一句听不懂的话…" [ref=e310]
+        - button "发送" [ref=e311] [cursor=pointer]:
+          - img [ref=e312]

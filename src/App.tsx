@@ -1,26 +1,27 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
+  ArrowRight,
   AudioLines,
-  BadgeCheck,
   BookOpenCheck,
   BrainCircuit,
-  CalendarDays,
-  Check,
+  CalendarCheck,
   ChevronRight,
+  Check,
   CircleDollarSign,
-  Clock3,
+  ClipboardList,
   FileAudio,
   FileText,
-  GraduationCap,
   ImagePlus,
   LibraryBig,
-  ListChecks,
+  Lightbulb,
+  Loader2,
   LockKeyhole,
-  Map,
   Mic,
+  Notebook,
   Pause,
   Play,
+  RefreshCw,
   Search,
   Send,
   ShieldCheck,
@@ -29,15 +30,14 @@ import {
   Store,
   Trash2,
   Upload,
-  WalletCards,
   Wand2,
   X,
 } from "lucide-react";
 
-type View = "home" | "classroom" | "notes" | "market" | "wallet";
+type View = "home" | "classroom" | "notes" | "market";
 type RecordState = "idle" | "recording" | "paused" | "metadata" | "generating" | "done";
 type PermissionState = "not_requested" | "requesting" | "granted";
-type NoteTab = "transcript" | "summary" | "exam";
+type NoteTab = "transcript" | "summary" | "exercise" | "review";
 type LoginStep = "phone" | "code";
 type LessonMeta = {
   school: string;
@@ -51,6 +51,28 @@ type ClassPhoto = {
   url: string;
 };
 
+type ClassroomFile = {
+  title: string;
+  type: string;
+  folder: string;
+  duration: string;
+  durationText: string;
+  status: string;
+  price: number;
+  period: "今天" | "本周" | "更早";
+};
+
+type MarketNote = {
+  id: string;
+  title: string;
+  school: string;
+  major: string;
+  author: string;
+  price: number;
+  excerpt: string;
+  tags: string[];
+};
+
 type StudentProfile = {
   school: string;
   major: string;
@@ -58,54 +80,105 @@ type StudentProfile = {
   verified: boolean;
 };
 
-const noteFiles = [
+const LOGIN_STORAGE_KEY = "baizhi-students.mock-login";
+
+function readStoredLogin() {
+  try {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(LOGIN_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeStoredLogin() {
+  try {
+    window.localStorage.setItem(LOGIN_STORAGE_KEY, "true");
+  } catch {
+    // 演示环境里即使本地存储不可用，也继续保留当前页面的登录态。
+  }
+}
+
+const noteFiles: ClassroomFile[] = [
   {
-    title: "高数第 8 讲：多元函数极值",
+    title: "新录音 2026-05-22 11:00:46",
     type: "录音文件",
     folder: "2026 春季学期 / 高等数学",
     duration: "34:24",
+    durationText: "34min24s",
     status: "AI 总结中",
     price: 30,
+    period: "今天",
   },
   {
-    title: "数据结构：图的遍历",
+    title: "新录音 2026-05-22 10:48:13",
     type: "录音文件",
     folder: "计算机科学 / 数据结构",
     duration: "42:08",
-    status: "上传至云端",
+    durationText: "42min8s",
+    status: "上传服务器",
     price: 18,
+    period: "今天",
   },
   {
-    title: "宏观经济学：通胀与就业",
+    title: "新录音 2026-05-21 16:25:09",
     type: "录音文件",
     folder: "经济管理 / 宏观经济学",
     duration: "28:16",
+    durationText: "28min16s",
     status: "转码中",
     price: 24,
+    period: "本周",
   },
   {
-    title: "英语听力：学术讲座精听",
+    title: "新录音 2026-05-21 14:02:31",
     type: "录音文件",
     folder: "外语学院 / 英语听力",
     duration: "12:09",
+    durationText: "12min9s",
     status: "暂停中",
     price: 12,
+    period: "本周",
   },
   {
-    title: "线性代数：矩阵特征值",
+    title: "新录音 2026-05-20 09:18:57",
     type: "录音文件",
     folder: "2026 春季学期 / 线性代数",
     duration: "08:42",
+    durationText: "8min42s",
     status: "录音中",
     price: 16,
+    period: "本周",
   },
   {
-    title: "计算机网络：TCP 拥塞控制",
+    title: "多元函数极值：约束条件与 Hessian 判别",
+    type: "AI 笔记",
+    folder: "2026 春季学期 / 高等数学",
+    duration: "34:24",
+    durationText: "34min24s",
+    status: "已入库",
+    price: 30,
+    period: "本周",
+  },
+  {
+    title: "图的遍历：DFS、BFS 与复杂度整理",
+    type: "AI 笔记",
+    folder: "计算机科学 / 数据结构",
+    duration: "42:08",
+    durationText: "42min8s",
+    status: "已入库",
+    price: 18,
+    period: "更早",
+  },
+  {
+    title: "TCP 拥塞控制：慢启动到快恢复",
     type: "转译文本",
     folder: "计算机科学 / 计算机网络",
     duration: "39:20",
+    durationText: "39min20s",
     status: "已入库",
     price: 20,
+    period: "更早",
   },
 ];
 
@@ -167,18 +240,32 @@ function formatDuration(totalSeconds: number) {
   return `${hours}:${minutes}:${seconds}`;
 }
 
+function formatFileDuration(totalSeconds: number) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h${minutes}min${seconds}s`;
+  if (minutes > 0) return `${minutes}min${seconds}s`;
+  return `${seconds}s`;
+}
+
+function formatRecordingTitle(date = new Date()) {
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  return `新录音 ${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 const legacyPhotoMocks = ["板书", "课件", "例题"];
 
 function statusClassName(status: string) {
   if (status === "录音中") return "is-recording";
   if (status === "暂停中") return "is-paused";
   if (status === "转码中") return "is-transcoding";
-  if (status === "上传至云端") return "is-uploading";
+  if (status === "上传服务器" || status === "上传至云端") return "is-uploading";
   if (status === "AI 总结中") return "is-summarizing";
   return "is-ready";
 }
 
-const marketplaceNotes = [
+const marketplaceNotes: MarketNote[] = [
   {
     id: "m1",
     title: "高数第 8 讲：多元函数极值",
@@ -186,8 +273,8 @@ const marketplaceNotes = [
     major: "计算机科学",
     author: "林同学",
     price: 30,
-    score: "4.9",
-    sold: 126,
+    excerpt: "覆盖无约束极值、Hessian 判别和拉格朗日乘子法，适合考前快速串联判断路径。",
+    tags: ["笔记重点", "测试题集", "复习建议"],
   },
   {
     id: "m2",
@@ -196,8 +283,8 @@ const marketplaceNotes = [
     major: "临床医学",
     author: "周同学",
     price: 520,
-    score: "4.8",
-    sold: 42,
+    excerpt: "把假设检验、方差分析和样本量估算放在同一套复习卡里，附有易错提醒。",
+    tags: ["笔记重点", "测试题集", "复习建议"],
   },
   {
     id: "m3",
@@ -206,8 +293,8 @@ const marketplaceNotes = [
     major: "经济管理",
     author: "沈同学",
     price: 24,
-    score: "4.7",
-    sold: 67,
+    excerpt: "用问题清单梳理 GDP、通胀、货币政策和 IS-LM 模型，适合课后自测。",
+    tags: ["笔记重点", "测试题集", "复习建议"],
   },
 ];
 
@@ -221,7 +308,7 @@ function App() {
   const [loginStep, setLoginStep] = useState<LoginStep>("phone");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(readStoredLogin);
   const [student, setStudent] = useState<StudentProfile>({
     school: "",
     major: "",
@@ -234,22 +321,32 @@ function App() {
     teacher: "",
     course: "",
   });
-  const [metaTouched, setMetaTouched] = useState(false);
   const [photos, setPhotos] = useState<ClassPhoto[]>([]);
+  const [recordedFiles, setRecordedFiles] = useState<ClassroomFile[]>([]);
   const [noteTab, setNoteTab] = useState<NoteTab>("transcript");
   const [showCertify, setShowCertify] = useState(false);
   const [marketSchool, setMarketSchool] = useState("全部学校");
   const [marketMajor, setMarketMajor] = useState("全部专业");
   const [marketQuery, setMarketQuery] = useState("");
+  const [publishedMarketNotes, setPublishedMarketNotes] = useState<MarketNote[]>([]);
   const [credits, setCredits] = useState(420);
-  const [purchaseTarget, setPurchaseTarget] = useState<(typeof marketplaceNotes)[number] | null>(null);
+  const [purchaseTarget, setPurchaseTarget] = useState<MarketNote | null>(null);
   const [purchaseStatus, setPurchaseStatus] = useState<"idle" | "success" | "insufficient">("idle");
+  const [purchasedIds, setPurchasedIds] = useState<string[]>([]);
+  const [publishAfterCertify, setPublishAfterCertify] = useState(false);
   const [toast, setToast] = useState("");
   const [recordSeconds, setRecordSeconds] = useState(0);
+  const [showPublish, setShowPublish] = useState(false);
+  const [showRecharge, setShowRecharge] = useState(false);
+  const [showCreditsPanel, setShowCreditsPanel] = useState(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const photosRef = useRef<ClassPhoto[]>([]);
 
-  const isMetaValid = Object.values(lessonMeta).every(Boolean);
+  const showToast = (text: string) => {
+    setToast(text);
+    window.setTimeout(() => setToast(""), 1800);
+  };
+
   const recordTimer = formatDuration(recordSeconds);
 
   useEffect(() => {
@@ -272,18 +369,26 @@ function App() {
     photosRef.current.forEach((photo) => URL.revokeObjectURL(photo.url));
   }, []);
 
-  const filteredMarket = marketplaceNotes.filter((item) => {
+  const marketNotes = [...publishedMarketNotes, ...marketplaceNotes];
+  const filteredMarket = marketNotes.filter((item) => {
     const schoolOk = marketSchool === "全部学校" || item.school === marketSchool;
     const majorOk = marketMajor === "全部专业" || item.major === marketMajor;
     const queryOk = !marketQuery || `${item.title}${item.school}${item.major}${item.author}`.toLowerCase().includes(marketQuery.toLowerCase());
     return schoolOk && majorOk && queryOk;
   });
 
+  const purchasedTitles = marketNotes
+    .filter((m) => purchasedIds.includes(m.id))
+    .map((m) => m.title);
+
+  const requireLogin = () => {
+    if (isLoggedIn) return true;
+    setShowLogin(true);
+    return false;
+  };
+
   const beginRecord = () => {
-    if (!isLoggedIn) {
-      setShowLogin(true);
-      return;
-    }
+    if (!requireLogin()) return;
     if (permission !== "granted") {
       setShowPermission(true);
       return;
@@ -291,7 +396,31 @@ function App() {
     if (recordState === "idle" || recordState === "done") {
       setRecordSeconds(0);
     }
+    setView("classroom");
     setRecordState("recording");
+  };
+
+  const generateRecordedNote = () => {
+    const seconds = Math.max(recordSeconds, 1);
+    const duration = formatDuration(seconds).replace(/^00:/, "");
+    const nextFile: ClassroomFile = {
+      title: formatRecordingTitle(),
+      type: "录音文件",
+      folder: lessonMeta.course ? `今日课堂 / ${lessonMeta.course}` : "今日课堂 / 未命名课程",
+      duration,
+      durationText: formatFileDuration(seconds),
+      status: "AI 总结中",
+      price: 0,
+      period: "今天",
+    };
+
+    setRecordState("generating");
+    window.setTimeout(() => {
+      setRecordedFiles((files) => [nextFile, ...files]);
+      setRecordState("done");
+      setView("notes");
+      setNoteTab("summary");
+    }, 900);
   };
 
   const authorize = () => {
@@ -302,20 +431,12 @@ function App() {
       if (recordState === "idle" || recordState === "done") {
         setRecordSeconds(0);
       }
+      setView("classroom");
       setRecordState("recording");
     }, 1000);
   };
 
   const finishRecord = () => {
-    if (isMetaValid) {
-      setRecordState("generating");
-      window.setTimeout(() => {
-        setRecordState("done");
-        setView("notes");
-        setNoteTab("summary");
-      }, 900);
-      return;
-    }
     setRecordState("metadata");
   };
 
@@ -332,15 +453,16 @@ function App() {
     setPhotos((items) => [...items, ...nextPhotos]);
   };
 
+  const deletePhoto = (photoId: string) => {
+    setPhotos((items) => {
+      const target = items.find((photo) => photo.id === photoId);
+      if (target) URL.revokeObjectURL(target.url);
+      return items.filter((photo) => photo.id !== photoId);
+    });
+  };
+
   const completeMetadata = () => {
-    setMetaTouched(true);
-    if (!isMetaValid) return;
-    setRecordState("generating");
-    window.setTimeout(() => {
-      setRecordState("done");
-      setView("notes");
-      setNoteTab("summary");
-    }, 900);
+    generateRecordedNote();
   };
 
   const submitLogin = () => {
@@ -348,6 +470,7 @@ function App() {
       setLoginStep("code");
       return;
     }
+    writeStoredLogin();
     setIsLoggedIn(true);
     setShowLogin(false);
     setLoginStep("phone");
@@ -372,13 +495,33 @@ function App() {
       school: prev.school || nextStudent.school,
     }));
     setShowCertify(false);
+    showToast("学生认证已通过");
+    if (publishAfterCertify) {
+      setPublishAfterCertify(false);
+      setShowPublish(true);
+    }
   };
 
-  const openPurchase = (note: (typeof marketplaceNotes)[number]) => {
-    if (!isLoggedIn) {
-      setShowLogin(true);
-      return;
-    }
+  const confirmPublish = ({ meta, price }: { meta: LessonMeta; price: number }) => {
+    const nextNote: MarketNote = {
+      id: `published-${Date.now()}`,
+      title: meta.course ? `${meta.course}：AI 课堂笔记精华` : "AI 课堂笔记精华",
+      school: meta.school || student.school || "北京某大学",
+      major: student.major || "计算机科学",
+      author: "我",
+      price,
+      excerpt: "由课堂录音自动整理，包含转译文本、结构化总结、测试题集和复习建议，适合课后快速回顾。",
+      tags: ["笔记重点", "测试题集", "复习建议"],
+    };
+    setLessonMeta(meta);
+    setPublishedMarketNotes((notes) => [nextNote, ...notes]);
+    setShowPublish(false);
+    setView("market");
+    showToast(`已发布到知识广场 · ${price} 积分`);
+  };
+
+  const openPurchase = (note: MarketNote) => {
+    if (!requireLogin()) return;
     setPurchaseStatus("idle");
     setPurchaseTarget(note);
   };
@@ -390,12 +533,36 @@ function App() {
       return;
     }
     setCredits((value) => value - purchaseTarget.price);
+    setPurchasedIds((ids) => (ids.includes(purchaseTarget.id) ? ids : [...ids, purchaseTarget.id]));
     setPurchaseStatus("success");
   };
-  const pageTitle = view === "home" ? "学习工作台" : view === "classroom" ? "今日课堂" : view === "notes" ? "AI 笔记资产库" : view === "market" ? "校园知识广场" : "积分钱包";
+
+  const closePurchase = () => {
+    setPurchaseTarget(null);
+    setPurchaseStatus("idle");
+  };
+
+  const goToNotesAfterPurchase = () => {
+    closePurchase();
+    setView("notes");
+    setNoteTab("summary");
+  };
+  const pageTitle =
+    view === "home"
+      ? "AI学习工作台"
+      : view === "classroom"
+      ? "今日课堂"
+      : view === "notes"
+      ? "AI 笔记资产库"
+      : "校园知识广场";
+
+  const openCreditsPanel = () => {
+    if (!requireLogin()) return;
+    setShowCreditsPanel(true);
+  };
 
   return (
-    <main className="student-app">
+    <main className={`student-app ${view === "notes" ? "" : "no-agent"}`}>
       {showLogin && (
         <LoginModal
           code={code}
@@ -412,11 +579,9 @@ function App() {
       {toast && <FloatingToast>{toast}</FloatingToast>}
       {recordState === "metadata" && (
         <MetadataModal
-          isMetaValid={isMetaValid}
           lessonMeta={lessonMeta}
-          metaTouched={metaTouched}
           setLessonMeta={setLessonMeta}
-          onClose={() => setRecordState("recording")}
+          onClose={generateRecordedNote}
           onSubmit={completeMetadata}
         />
       )}
@@ -433,9 +598,9 @@ function App() {
       />
       {showDiscardConfirm && (
         <ConfirmModal
-          title="放弃本次录音？"
-          body="放弃后会清空当前音频、转写片段和临时照片。已入库的历史文件不受影响。"
-          confirmText="确认放弃"
+          title="放弃这次录音？"
+          body="放弃后这段录音和临时照片不会保留。"
+          confirmText="放弃"
           onCancel={() => setShowDiscardConfirm(false)}
           onConfirm={() => {
             setRecordState("idle");
@@ -449,11 +614,40 @@ function App() {
           credits={credits}
           note={purchaseTarget}
           status={purchaseStatus}
-          onClose={() => setPurchaseTarget(null)}
+          onClose={closePurchase}
           onConfirm={confirmPurchase}
+          onGoToNotes={goToNotesAfterPurchase}
           onRecharge={() => {
             setCredits((value) => value + 200);
             setPurchaseStatus("idle");
+            showToast("已充值 200 积分");
+          }}
+        />
+      )}
+      {showPublish && (
+        <PublishModal
+          lessonMeta={lessonMeta}
+          onClose={() => setShowPublish(false)}
+          onConfirm={confirmPublish}
+        />
+      )}
+      {showRecharge && (
+        <RechargeModal
+          onClose={() => setShowRecharge(false)}
+          onConfirm={(amount) => {
+            setCredits((value) => value + amount);
+            setShowRecharge(false);
+            showToast(`充值成功，获得 ${amount} 积分`);
+          }}
+        />
+      )}
+      {showCreditsPanel && (
+        <CreditsPanel
+          credits={credits}
+          onClose={() => setShowCreditsPanel(false)}
+          onRecharge={() => {
+            setShowCreditsPanel(false);
+            setShowRecharge(true);
           }}
         />
       )}
@@ -462,25 +656,50 @@ function App() {
         <button className="brand-dot" onClick={() => setView("home")} aria-label="百智学生版首页">
           <BrainCircuit size={22} />
         </button>
-        <NavButton active={view === "home"} icon={<BookOpenCheck />} label="首页" onClick={() => setView("home")} />
-        <NavButton active={view === "classroom"} icon={<Mic />} label="今日课堂" onClick={() => setView("classroom")} />
-        <NavButton active={view === "notes"} icon={<LibraryBig />} label="AI 笔记" onClick={() => setView("notes")} />
-        <NavButton active={view === "market"} icon={<Store />} label="校园知识广场" onClick={() => setView("market")} />
-        <NavButton active={view === "wallet"} icon={<WalletCards />} label="积分钱包" onClick={() => setView("wallet")} />
-        <button className="account-entry" onClick={() => (isLoggedIn ? setShowCertify(true) : setShowLogin(true))}>
-          <span className="avatar-dot">{isLoggedIn ? "我" : <LockKeyhole size={17} />}</span>
-          <strong>{isLoggedIn ? "138****8000" : "立即登录"}</strong>
-        </button>
+        <nav className="thin-nav-group">
+          <NavButton active={view === "home"} icon={<BookOpenCheck />} label="首页" onClick={() => setView("home")} />
+          <NavButton active={view === "classroom"} icon={<Mic />} label="今日课堂" onClick={() => setView("classroom")} />
+          <NavButton active={view === "notes"} icon={<LibraryBig />} label="AI 笔记" onClick={() => setView("notes")} />
+          <NavButton active={view === "market"} icon={<Store />} label="知识广场" onClick={() => setView("market")} />
+        </nav>
       </aside>
 
-      <section className="main-stage">
-        <header className="student-topbar">
-          <div className="brand-lockup">
-            <p>百智学生版</p>
-            <h1>{pageTitle}</h1>
+      <header className="student-topbar">
+        <div className="brand-lockup">
+          <div className="brand-crumb">
+            <span className="brand-crumb-tag">
+              <i />
+              百智学生版
+            </span>
           </div>
-        </header>
+          <h1>{pageTitle}</h1>
+        </div>
+        <div className="topbar-tools">
+          <button
+            type="button"
+            className="topbar-credits"
+            onClick={openCreditsPanel}
+            aria-expanded={showCreditsPanel}
+            aria-haspopup="dialog"
+          >
+            <CircleDollarSign size={15} />
+            <span className="topbar-credits-value">{credits}</span>
+            <span className="topbar-credits-label">积分</span>
+          </button>
+          <button
+            className="topbar-account"
+            onClick={() => (requireLogin() ? setShowCertify(true) : undefined)}
+          >
+            <span className="avatar-dot">{isLoggedIn ? "我" : <LockKeyhole size={14} />}</span>
+            <span className="topbar-account-text">
+              <small>{isLoggedIn ? "已登录" : "未登录"}</small>
+              <strong>{isLoggedIn ? "138****8000" : "立即登录"}</strong>
+            </span>
+          </button>
+        </div>
+      </header>
 
+      <section className="main-stage">
         {view === "home" && <HomeDashboard beginRecord={beginRecord} setView={setView} />}
         {view === "classroom" && (
           <ClassroomView
@@ -493,20 +712,24 @@ function App() {
             beginRecord={beginRecord}
             finishRecord={finishRecord}
             onDiscard={() => setShowDiscardConfirm(true)}
+            onDeletePhoto={deletePhoto}
             onPhoto={() => photoInputRef.current?.click()}
           />
         )}
         {view === "notes" && (
           <NotesLibrary
             noteTab={noteTab}
+            recordedFiles={recordedFiles}
             setNoteTab={setNoteTab}
+            purchasedTitles={purchasedTitles}
             onPublish={() => {
+              if (!requireLogin()) return;
               if (!student.verified) {
+                setPublishAfterCertify(true);
                 setShowCertify(true);
                 return;
               }
-              setToast("已生成发布草稿，可继续补充价格与预览范围");
-              window.setTimeout(() => setToast(""), 1800);
+              setShowPublish(true);
             }}
           />
         )}
@@ -516,24 +739,19 @@ function App() {
             marketMajor={marketMajor}
             marketQuery={marketQuery}
             marketSchool={marketSchool}
+            purchasedIds={purchasedIds}
             setMarketMajor={setMarketMajor}
             setMarketQuery={setMarketQuery}
             setMarketSchool={setMarketSchool}
             onPurchase={openPurchase}
-          />
-        )}
-        {view === "wallet" && (
-          <WalletView
-            credits={credits}
-            onRecharge={() => {
-              setToast("前往百智平台购买");
-              window.setTimeout(() => setToast(""), 1800);
-            }}
+            onOpenPurchased={() => setView("notes")}
           />
         )}
       </section>
 
-      <AgentPanel recordState={recordState} setNoteTab={setNoteTab} setView={setView} />
+      {view === "notes" && (
+        <AgentPanel recordState={recordState} setNoteTab={setNoteTab} setView={setView} />
+      )}
     </main>
   );
 }
@@ -547,89 +765,287 @@ function NavButton({ active, icon, label, onClick }: { active: boolean; icon: Re
   );
 }
 
+function XiaozhiRecordStage({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className={`record-empty-stage${compact ? " is-compact" : ""}`}>
+      <div className="record-mascot" aria-hidden="true">
+        <span className="rm-ear rm-ear-l" />
+        <span className="rm-ear rm-ear-r" />
+        <span className="rm-band" />
+        <span className="rm-face">
+          <span className="rm-eye rm-eye-l" />
+          <span className="rm-eye rm-eye-r" />
+          <span className="rm-mouth" />
+        </span>
+        <span className="rm-cheek rm-cheek-l" />
+        <span className="rm-cheek rm-cheek-r" />
+        <span className="rm-note rm-note-1">♪</span>
+        <span className="rm-note rm-note-2">♫</span>
+      </div>
+      <div className="record-empty-orbit">
+        <span className="record-radar-ring ring-one" />
+        <span className="record-radar-ring ring-two" />
+        <span className="record-wave-disc">
+          <AudioLines size={compact ? 24 : 30} />
+        </span>
+        <span className="record-wave-bars" aria-hidden="true">
+          <i /><i /><i /><i /><i />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function HomeSpotlightVisual() {
+  return (
+    <div className="home-spotlight-visual" aria-hidden="true">
+      {/* 后方 AI 光环 — 缓慢旋转 */}
+      <span className="hsv-orbit">
+        <span className="hsv-orbit-dot hsv-orbit-dot-1" />
+        <span className="hsv-orbit-dot hsv-orbit-dot-2" />
+        <span className="hsv-orbit-dot hsv-orbit-dot-3" />
+      </span>
+
+      {/* 主便签 */}
+      <span className="home-note-pin" />
+      <span className="home-note-sheet">
+        {/* 录音波形：5 条小竖线轮流跳动 */}
+        <span className="home-note-icon">
+          <span className="hsv-wave" aria-hidden="true">
+            <i /><i /><i /><i /><i />
+          </span>
+        </span>
+        {/* 一条正在"打字"的高亮笔记行 */}
+        <span className="home-note-line line-1" />
+        <span className="home-note-line line-2">
+          <span className="hsv-typing-cursor" aria-hidden="true" />
+        </span>
+        <span className="home-note-line line-3" />
+        <span className="home-note-line line-4" />
+        {/* 黄色 marker — drawn-in 动画 */}
+        <span className="home-note-highlight" />
+      </span>
+
+      {/* 闪烁星点 */}
+      <span className="home-note-doodle doodle-left">
+        <Sparkles size={12} />
+      </span>
+      <span className="home-note-doodle doodle-right">
+        <Sparkles size={10} />
+      </span>
+
+      {/* 漂浮的小 AI 气泡 */}
+      <span className="hsv-bubble hsv-bubble-1">AI</span>
+      <span className="hsv-bubble hsv-bubble-2">✦</span>
+    </div>
+  );
+}
+
 function HomeDashboard({ beginRecord, setView }: { beginRecord: () => void; setView: (view: View) => void }) {
-  const hardwareScenes = [
+  const hardwareScenes: Array<{
+    title: string;
+    desc: string;
+    Icon: typeof Mic;
+    tag: string;
+    handler: () => void;
+    tone: string;
+    rotate: string;
+  }> = [
     {
-      title: "课堂拾音终端",
-      desc: "全程收录授课、提问与板书时刻，下课即生成可复习的课堂资产。",
-      action: "开始课堂记录",
+      title: "课堂拾音",
+      desc: "上课打开它，老师讲的每一句话都会变成你的笔记。",
+      Icon: Mic,
+      tag: "最常用",
       handler: beginRecord,
+      tone: "tone-mint",
+      rotate: "rot-l",
     },
     {
-      title: "随身灵感笔",
-      desc: "灵感、账目、待办随口落库，小智自动归类成今天要处理的事项。",
-      action: "查看灵感库",
+      title: "随身灵感",
+      desc: "想到啥都能随口说一句，小智帮你归类成今日待办。",
+      Icon: Lightbulb,
+      tag: "随手记",
       handler: () => setView("notes"),
+      tone: "tone-cream",
+      rotate: "rot-r",
     },
     {
-      title: "错题同步笔",
-      desc: "课后做题秒级同步，错题、解析和知识点无感进入你的个人题库。",
-      action: "进入题库",
+      title: "错题同步",
+      desc: "课后做题秒同步，错题和解析直接进个人题库。",
+      Icon: Notebook,
+      tag: "考前必备",
       handler: () => setView("notes"),
+      tone: "tone-sky",
+      rotate: "rot-l",
     },
   ];
-  const studyMethods = [
-    ["费曼学习法", "把知识讲给别人听，讲不清的地方就是复习入口。"],
-    ["康奈尔 5R", "记录、简化、背诵、思考、复习，把课堂笔记变成长期记忆。"],
-    ["番茄钟学习法", "25 分钟专注 + 5 分钟休息，用节奏对抗拖延。"],
-    ["SQ3R 阅读法", "浏览、提问、阅读、复述、复习，让教材从厚变薄。"],
-    ["模仿学习法", "先复刻优秀解题路径，再抽象成自己的方法库。"],
-    ["提问学习法", "把知识点改写成问题，让小智陪你追问到底。"],
+
+  const studyMethods: Array<{
+    title: string;
+    tagline: string;
+    principle: string;
+    tip: string;
+    flow?: string[];
+    steps: Array<{ title: string; detail: string }>;
+    visual: "teach" | "cornell" | "curve" | "faster" | "pomodoro" | "sq3r";
+  }> = [
+    {
+      title: "费曼学习法",
+      tagline: "讲得清楚，才算真懂。",
+      principle: "用大白话讲复杂知识，讲不通就是没真懂。",
+      tip: "讲完一遍录下来，自己回放找漏洞。",
+      flow: ["选择目标", "教授知识", "回顾纠错", "简化语言"],
+      steps: [
+        { title: "锁定概念", detail: "只圈一个知识点" },
+        { title: "大白话讲", detail: "像教同学一样说" },
+        { title: "回头补缺", detail: "卡壳处回教材" },
+        { title: "二轮简化", detail: "再讲一遍更短" },
+      ],
+      visual: "teach",
+    },
+    {
+      title: "康奈尔 5R",
+      tagline: "一页笔记，三个区。",
+      principle: "分区记录 + 线索 + 总结，复习效率翻倍。",
+      tip: "复习时遮住主栏，只看线索栏回忆内容。",
+      steps: [
+        { title: "右侧记", detail: "课堂内容原样记" },
+        { title: "左侧提", detail: "关键词当线索" },
+        { title: "底部总", detail: "一句话收束" },
+        { title: "回头背", detail: "遮主栏背线索" },
+      ],
+      visual: "cornell",
+    },
+    {
+      title: "艾宾浩斯",
+      tagline: "趁忘记之前，再看一眼。",
+      principle: "按遗忘曲线安排回看，记忆更牢。",
+      tip: "把回看安排在 20 分钟 / 1 天 / 7 天后。",
+      steps: [
+        { title: "当天稳", detail: "课后先过一遍" },
+        { title: "分段看", detail: "1 / 3 / 7 天回看" },
+        { title: "薄弱加", detail: "易忘点多刷" },
+        { title: "月度盘", detail: "30 天再回顾" },
+      ],
+      visual: "curve",
+    },
+    {
+      title: "FASTER 法",
+      tagline: "情绪 + 节奏 = 记得久。",
+      principle: "调动情绪与节奏，让记忆有锚点。",
+      tip: "给每个知识点配一个夸张的情绪标签。",
+      flow: ["F", "A", "S", "T", "E", "R"],
+      steps: [
+        { title: "放下旧知", detail: "清空先入为主" },
+        { title: "标重点", detail: "情绪挂钩记忆" },
+        { title: "教一遍", detail: "输出再复盘" },
+        { title: "再回看", detail: "睡前过一遍" },
+      ],
+      visual: "faster",
+    },
+    {
+      title: "番茄钟",
+      tagline: "25 分钟，只做一件事。",
+      principle: "短冲刺 + 短休息，保持专注节奏。",
+      tip: "番茄期间手机静音翻面，物理隔离干扰。",
+      flow: ["学习 25′", "休息 5′", "循环 4 轮"],
+      steps: [
+        { title: "定目标", detail: "一件事做完" },
+        { title: "专注学", detail: "25 分钟不分心" },
+        { title: "歇再开", detail: "5 分钟后下一轮" },
+        { title: "四轮长歇", detail: "完成后 15 分钟" },
+      ],
+      visual: "pomodoro",
+    },
+    {
+      title: "SQ3R 阅读法",
+      tagline: "先看骨架，再钻细节。",
+      principle: "浏览 → 提问 → 阅读 → 复述 → 复习。",
+      tip: "读前先把章节标题改写成问题清单。",
+      flow: ["S", "Q", "R", "R", "R"],
+      steps: [
+        { title: "Survey", detail: "扫目录抓结构" },
+        { title: "Question", detail: "带着问题读" },
+        { title: "Read", detail: "找答案精读" },
+        { title: "Review", detail: "复述并回看" },
+      ],
+      visual: "sq3r",
+    },
   ];
 
   return (
     <section className="home-dashboard">
-      <div className="home-hero-module">
-        <div className="home-hero-mark">
-          <span>BAIZHI</span>
-          <strong>学生版</strong>
+      <section className="glass-card home-spotlight">
+        <HomeSpotlightVisual />
+        <div className="home-spotlight-copy">
+          <span className="home-hero-tag">
+            <i>🎒</i>
+            今天也要好好听课
+          </span>
+          <h2 className="home-hero-title">
+            <span className="hero-line-lead">开麦听课</span>
+            <span className="hero-line-main">
+              <span className="hero-highlight">笔记自己长出来</span>
+              <span className="hero-spark" aria-hidden="true">
+                ✦
+              </span>
+            </span>
+          </h2>
+          <p className="home-spotlight-sub">专心听讲就好，剩下的交给小智 ✨</p>
         </div>
-        <div className="home-slogan">
-          <span>BAIZHI STUDENT EDITION</span>
-          <h2>把课堂变成你的第二大脑</h2>
-          <p>声音、照片、灵感与错题会自动沉淀为可复习、可追问、可流通的个人学习资产。</p>
-        </div>
-      </div>
+        <button type="button" className="home-start-pill" onClick={beginRecord}>
+          <span className="rsp-icon">
+            <Mic size={16} />
+          </span>
+          <span className="rsp-wave" aria-hidden="true">
+            <i /><i /><i /><i />
+          </span>
+          <span className="rsp-text">一键开录</span>
+        </button>
+      </section>
 
       <div className="home-lower-grid">
-        <section className="home-module hardware-module">
-          <div className="home-module-head">
-            <span>Recording Hardware</span>
-            <h3>三种学习记录场景</h3>
+        <section className="glass-card home-entry-panel">
+          <div className="section-head section-head--compact">
+            <div>
+              <h2>今天想怎么学？</h2>
+              <p>挑一种方式，三秒钟开启你的学习</p>
+            </div>
           </div>
           <div className="hardware-scenes">
-          {hardwareScenes.map((scene, index) => (
-            <article className="hardware-row" key={scene.title}>
-              <div className="hardware-index">{String(index + 1).padStart(2, "0")}</div>
-              <div>
-                <h3>{scene.title}</h3>
-                <p>{scene.desc}</p>
-              </div>
-              <button className="hardware-arrow" onClick={scene.handler} aria-label={scene.action}>
-                <ChevronRight size={15} />
-              </button>
-            </article>
-          ))}
+            {hardwareScenes.map((scene, index) => (
+              <article
+                className={`hw-tile ${scene.tone} ${scene.rotate}`}
+                key={scene.title}
+                onClick={scene.handler}
+                style={{ "--i": index } as React.CSSProperties}
+              >
+                <span className="hw-tile-icon" aria-hidden="true">
+                  <scene.Icon size={22} strokeWidth={1.6} />
+                </span>
+                <div className="hw-tile-body">
+                  <span className="hw-tile-tag">{scene.tag}</span>
+                  <h3>{scene.title}</h3>
+                  <p>{scene.desc}</p>
+                </div>
+                <span className="hw-tile-arrow" aria-hidden="true">
+                  <ArrowRight size={16} />
+                </span>
+              </article>
+            ))}
           </div>
-          <button className="home-mic-button" onClick={beginRecord}>
-            <Mic size={18} />
-            开始记录今天的学习
-          </button>
         </section>
 
-        <section className="home-module methods-module">
-          <div className="home-module-head">
-            <span>Study Cards</span>
-            <h3>小智推荐的学习方法</h3>
+        <section className="glass-card home-methods-panel">
+          <div className="section-head section-head--compact">
+            <div>
+              <h2>教你变学霸</h2>
+              <p>六种学习方法，贴墙就能照着做</p>
+            </div>
           </div>
           <div className="study-method-wall">
-            {studyMethods.map(([title, desc], index) => (
-              <article className="method-card" key={title}>
-                <div className="method-dots"><span /><span /><span /></div>
-                <h3>{title}</h3>
-                <p>{desc}</p>
-                <i>{index % 2 === 0 ? "→" : "↗"}</i>
-              </article>
+            {studyMethods.map((m, index) => (
+              <MethodPoster key={m.title} method={m} index={index} />
             ))}
           </div>
         </section>
@@ -638,11 +1054,146 @@ function HomeDashboard({ beginRecord, setView }: { beginRecord: () => void; setV
   );
 }
 
+const CIRCLED_NUMS = ["①", "②", "③", "④", "⑤", "⑥"];
+
+function MethodPoster({
+  method,
+  index,
+}: {
+  method: {
+    title: string;
+    tagline: string;
+    principle: string;
+    tip: string;
+    flow?: string[];
+    steps: Array<{ title: string; detail: string }>;
+    visual: "teach" | "cornell" | "curve" | "faster" | "pomodoro" | "sq3r";
+  };
+  index: number;
+}) {
+  return (
+    <article
+      className="method-poster"
+      style={{ "--i": index } as React.CSSProperties}
+    >
+      <span className="method-corner-dots" aria-hidden="true">•••</span>
+      <span className="method-poster-no" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+      <header className="method-poster-head">
+        <h3>{method.title}</h3>
+        <p className="method-poster-tagline">{method.tagline}</p>
+        <p className="method-poster-principle">
+          <span className="method-poster-label">【原理】</span>
+          <span>{method.principle}</span>
+        </p>
+      </header>
+      <MethodVisual visual={method.visual} flow={method.flow} />
+      <div className="method-poster-steps-wrap">
+        <span className="method-poster-steps-label">【步骤】</span>
+        <ol className="method-poster-steps">
+          {method.steps.map((step, stepIndex) => (
+            <li key={step.title}>
+              <span className="method-poster-step-no">{CIRCLED_NUMS[stepIndex] ?? stepIndex + 1}</span>
+              <span className="method-poster-step-body">
+                <strong>{step.title}</strong>
+                <small>{step.detail}</small>
+              </span>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <p className="method-poster-tip">
+        <span className="method-poster-tip-label">💡贴士</span>
+        <span>{method.tip}</span>
+      </p>
+    </article>
+  );
+}
+
+function MethodVisual({
+  visual,
+  flow,
+}: {
+  visual: "teach" | "cornell" | "curve" | "faster" | "pomodoro" | "sq3r";
+  flow?: string[];
+}) {
+  if (visual === "cornell") {
+    return (
+      <div className="method-visual cornell" aria-hidden="true">
+        <span>笔记栏</span>
+        <span>线索栏</span>
+        <strong>总结栏</strong>
+      </div>
+    );
+  }
+  if (visual === "curve") {
+    return (
+      <div className="method-visual curve" aria-hidden="true">
+        <i className="curve-line" />
+        <span className="curve-dot a" />
+        <span className="curve-dot b" />
+        <span className="curve-dot c" />
+      </div>
+    );
+  }
+  if (visual === "pomodoro" && flow) {
+    return (
+      <div className="method-visual flow-row" aria-hidden="true">
+        {flow.flatMap((label, index) =>
+          index < flow.length - 1
+            ? [<span key={label}>{label}</span>, <i key={`${label}-arrow`} aria-hidden="true" />]
+            : [<span key={label}>{label}</span>],
+        )}
+      </div>
+    );
+  }
+  if ((visual === "sq3r" || visual === "faster") && flow) {
+    return (
+      <div className={`method-visual letter-row ${visual}`} aria-hidden="true">
+        {flow.map((item, index) => (
+          <span key={`${item}-${index}`}>{item}</span>
+        ))}
+      </div>
+    );
+  }
+  if (visual === "teach" && flow) {
+    return (
+      <div className="method-visual flow-row" aria-hidden="true">
+        {flow.flatMap((label, index) =>
+          index < flow.length - 1
+            ? [<span key={label}>{label}</span>, <i key={`${label}-arrow`} aria-hidden="true" />]
+            : [<span key={label}>{label}</span>],
+        )}
+      </div>
+    );
+  }
+  if (flow && flow.length >= 3) {
+    return (
+      <div className="method-visual flow-row" aria-hidden="true">
+        {flow.flatMap((label, index) =>
+          index < flow.length - 1
+            ? [<span key={label}>{label}</span>, <i key={`${label}-arrow`} aria-hidden="true" />]
+            : [<span key={label}>{label}</span>],
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="method-visual flow-row" aria-hidden="true">
+      <span>选择目标</span>
+      <i aria-hidden="true" />
+      <span>教授知识</span>
+      <i aria-hidden="true" />
+      <span>回顾纠错</span>
+    </div>
+  );
+}
+
 function ClassroomView({
   beginRecord,
   finishRecord,
   lessonMeta,
   onDiscard,
+  onDeletePhoto,
   onPhoto,
   photos,
   recordTimer,
@@ -654,6 +1205,7 @@ function ClassroomView({
   finishRecord: () => void;
   lessonMeta: LessonMeta;
   onDiscard: () => void;
+  onDeletePhoto: (photoId: string) => void;
   onPhoto: () => void;
   photos: ClassPhoto[];
   recordTimer: string;
@@ -679,21 +1231,19 @@ function ClassroomView({
 
       {recordState === "idle" ? (
         <div className="record-empty">
-          <div className="record-empty-orbit">
-            <Mic size={34} />
-          </div>
+          <XiaozhiRecordStage />
           <div>
-            <h3>开启一节新的课堂记录</h3>
-            <p>上课时专心听讲就好，剩下的交给小智。课堂声音、板书照片和重点片段会被整理成可复习、可追问的 AI 笔记。</p>
+            <h3>开启一节课</h3>
+            <p>专心听讲就好，剩下的交给小智 ✨</p>
           </div>
-          <button className="primary-action record-start-button" onClick={beginRecord}>
-            <Mic size={17} />
-            <span className="record-wave" aria-hidden="true">
-              <i />
-              <i />
-              <i />
+          <button className="record-start-pill" onClick={beginRecord}>
+            <span className="rsp-icon">
+              <Mic size={16} />
             </span>
-            开始录音
+            <span className="rsp-wave" aria-hidden="true">
+              <i /><i /><i /><i />
+            </span>
+            <span className="rsp-text">开始录音</span>
           </button>
         </div>
       ) : (
@@ -720,6 +1270,14 @@ function ClassroomView({
               <div className={`photo-chip tone-${index % 4}`} key={photo.id}>
                 <img alt={photo.name} src={photo.url} />
                 <span>{`课堂照片 ${index + 1}`}</span>
+                <button
+                  className="photo-delete"
+                  type="button"
+                  aria-label={`删除课堂照片 ${index + 1}`}
+                  onClick={() => onDeletePhoto(photo.id)}
+                >
+                  <X size={13} />
+                </button>
               </div>
             ))}
           </div>
@@ -734,10 +1292,12 @@ function ClassroomView({
             ))}
           </div>
 
-          <div className="wave-line">
-            {Array.from({ length: 64 }).map((_, index) => (
-              <span key={index} style={{ animationDelay: `${index * 0.025}s`, height: `${8 + ((index * 19) % 34)}px` }} />
-            ))}
+          <div className="wave-line" aria-hidden="true">
+            <svg viewBox="0 0 620 86" role="presentation">
+              <path className="wave-thread wave-soft" d="M8 45 C 72 22, 132 20, 205 42 S 336 65, 412 38 S 532 22, 612 40" />
+              <path className="wave-thread wave-main" d="M10 35 C 82 10, 152 18, 220 31 S 348 50, 430 27 S 548 14, 610 32" />
+              <path className="wave-thread wave-low" d="M22 54 C 98 42, 148 60, 218 50 S 346 28, 420 51 S 536 62, 596 48" />
+            </svg>
           </div>
 
           <div className="recorder-actions">
@@ -745,6 +1305,7 @@ function ClassroomView({
               <Trash2 size={17} />
               放弃录音
             </button>
+            <span className="recorder-timer">{recordTimer}</span>
             {recordState === "recording" || recordState === "paused" ? (
               <>
                 <button className="round-action" onClick={() => setRecordState(recordState === "paused" ? "recording" : "paused")}>
@@ -771,33 +1332,108 @@ function ClassroomView({
 function NotesLibrary({
   noteTab,
   onPublish,
+  purchasedTitles,
+  recordedFiles,
   setNoteTab,
 }: {
   noteTab: NoteTab;
   onPublish: () => void;
+  purchasedTitles: string[];
+  recordedFiles: ClassroomFile[];
   setNoteTab: (value: NoteTab) => void;
 }) {
+  const allFiles = [
+    ...recordedFiles,
+    ...purchasedTitles.map((title) => ({
+      title,
+      type: "广场购买",
+      folder: "知识广场 / 已购入",
+      duration: "—",
+      durationText: "—",
+      status: "已入库",
+      price: 0,
+      period: "今天" as const,
+    })),
+    ...noteFiles,
+  ];
+
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [expandedPeriods, setExpandedPeriods] = useState<Record<ClassroomFile["period"], boolean>>({
+    今天: true,
+    本周: true,
+    更早: false,
+  });
+  const [summaryReady, setSummaryReady] = useState(false);
+  const [exerciseReady, setExerciseReady] = useState(false);
+  const [reviewReady, setReviewReady] = useState(false);
+  const [generating, setGenerating] = useState<null | "summary" | "exercise" | "review">(null);
+
+  const triggerGenerate = (kind: "summary" | "exercise" | "review") => {
+    setGenerating(kind);
+    window.setTimeout(() => {
+      if (kind === "summary") setSummaryReady(true);
+      if (kind === "exercise") setExerciseReady(true);
+      if (kind === "review") setReviewReady(true);
+      setGenerating(null);
+    }, 900);
+  };
+
+  const periodOrder: ClassroomFile["period"][] = ["今天", "本周", "更早"];
+  const groupedFiles = periodOrder.map((period) => ({
+    period,
+    files: allFiles
+      .map((file, index) => ({ file, index }))
+      .filter(({ file }) => file.period === period),
+  }));
+
+  const tabs: Array<[NoteTab, string]> = [
+    ["transcript", "转译文本"],
+    ["summary", "智能总结"],
+    ["exercise", "测试题集"],
+    ["review", "复习建议"],
+  ];
+
   return (
     <div className="notes-grid">
       <section className="glass-card file-list-card">
         <div className="section-head">
           <div>
-            <p>全部录音</p>
             <h2>课堂文件</h2>
+            <p>共 {allFiles.length} 条</p>
           </div>
-          <span className="file-count-pill">{noteFiles.length} 条</span>
         </div>
         <div className="file-list">
-          {noteFiles.map((file, index) => (
-            <article className={index === 0 ? "selected" : ""} key={file.title}>
-              <div className="file-icon">{file.type === "录音文件" ? <FileAudio size={18} /> : <FileText size={18} />}</div>
-              <div>
-                <strong>{file.title}</strong>
-                <p>{file.folder}</p>
-              </div>
-              <span className="file-type">{file.type}</span>
-              <small className={`file-status ${statusClassName(file.status)}`}>{file.status}</small>
-            </article>
+          {groupedFiles.map(({ period, files }) => (
+            <section className="file-period" key={period}>
+              <button
+                type="button"
+                className="file-period-head"
+                onClick={() => setExpandedPeriods((current) => ({ ...current, [period]: !current[period] }))}
+              >
+                <span>{period}</span>
+                <small>{files.length} 条</small>
+                <ChevronRight className={expandedPeriods[period] ? "is-open" : ""} size={15} />
+              </button>
+              {expandedPeriods[period] && (
+                <div className="file-period-items">
+                  {files.map(({ file, index }) => (
+                    <article
+                      className={index === selectedIndex ? "selected" : ""}
+                      key={`${file.title}-${index}`}
+                      onClick={() => setSelectedIndex(index)}
+                    >
+                      <div className="mini-note">
+                        <strong>{file.title}</strong>
+                        <div className="mini-note-meta">
+                          <small className={`file-status ${statusClassName(file.status)}`}>{file.status}</small>
+                          <small className="file-duration">{file.durationText}</small>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
           ))}
         </div>
       </section>
@@ -805,8 +1441,8 @@ function NotesLibrary({
       <section className="glass-card note-detail-card">
         <div className="note-detail-head">
           <div>
-            <p>高数第 8 讲</p>
             <h2>多元函数极值</h2>
+            <p>高数第 8 讲 · 34 分 24 秒</p>
           </div>
           <button className="primary-action" onClick={onPublish}>
             <Store size={16} />
@@ -825,54 +1461,235 @@ function NotesLibrary({
           <button>1x</button>
         </div>
         <div className="note-tabs">
-          {[
-            ["transcript", "转译文本"],
-            ["summary", "智能总结"],
-            ["exam", "考试预测"],
-          ].map(([key, label]) => (
-            <button className={noteTab === key ? "active" : ""} key={key} onClick={() => setNoteTab(key as NoteTab)}>
+          {tabs.map(([key, label]) => (
+            <button className={noteTab === key ? "active" : ""} key={key} onClick={() => setNoteTab(key)}>
               {label}
             </button>
           ))}
         </div>
-        <NoteContent tab={noteTab} />
+        <div className="note-content-scroll">
+          <NoteContent
+            tab={noteTab}
+            summaryReady={summaryReady}
+            exerciseReady={exerciseReady}
+            reviewReady={reviewReady}
+            generating={generating}
+            onGenerate={triggerGenerate}
+          />
+        </div>
       </section>
     </div>
   );
 }
 
-function NoteContent({ tab }: { tab: NoteTab }) {
+function NoteContent({
+  tab,
+  summaryReady,
+  exerciseReady,
+  reviewReady,
+  generating,
+  onGenerate,
+}: {
+  tab: NoteTab;
+  summaryReady: boolean;
+  exerciseReady: boolean;
+  reviewReady: boolean;
+  generating: null | "summary" | "exercise" | "review";
+  onGenerate: (kind: "summary" | "exercise" | "review") => void;
+}) {
   if (tab === "transcript") {
     return (
       <div className="speaker-list">
-        <div className="transcript-meta">
-          <span>ASR 转写完成</span>
-          <span>6 段说话人识别</span>
-          <span>平均置信度 96%</span>
-        </div>
         {transcriptLines.map((line) => (
           <article key={line.time}>
-            <div className="speaker-head">
-              <div>
-                <strong>{line.speaker}</strong>
-                <span>{line.role}</span>
-              </div>
-              <time>{line.time}</time>
-            </div>
+            <time>{line.time}</time>
             <p>{line.text}</p>
-            <div className="transcript-tags">
-              <span>{line.event}</span>
-              <span>置信度 {line.confidence}</span>
-            </div>
           </article>
         ))}
       </div>
     );
   }
-  if (tab === "exam") {
-    return <div className="note-content">高概率考点：给定函数求驻点并判断极值类型；中概率考点：约束条件下的最值计算。</div>;
+  if (tab === "summary") {
+    if (!summaryReady) {
+      return (
+        <GenerateEmpty
+          kind="summary"
+          title="还没有智能总结"
+          desc="让小智读完整段课堂内容，给你一份结构化的复习要点。"
+          buttonLabel="生成智能总结"
+          loadingLabel="小智正在阅读课堂内容…"
+          generating={generating === "summary"}
+          onGenerate={() => onGenerate("summary")}
+        />
+      );
+    }
+    return (
+      <div className="generated-wrap">
+        <div className="regenerate-bar">
+          <span>已由小智整理 · 刚刚</span>
+          <button type="button" onClick={() => onGenerate("summary")}>
+            <RefreshCw size={13} /> 重新生成
+          </button>
+        </div>
+        <SummaryNote />
+      </div>
+    );
   }
-  return <SummaryNote />;
+  if (tab === "exercise") {
+    if (!exerciseReady) {
+      return (
+        <GenerateEmpty
+          kind="exercise"
+          title="还没有测试题集"
+          desc="基于课堂内容自动生成 5–10 道随堂练习，做完即时校对。"
+          buttonLabel="生成测试题集"
+          loadingLabel="小智正在出题…"
+          generating={generating === "exercise"}
+          onGenerate={() => onGenerate("exercise")}
+        />
+      );
+    }
+    return (
+      <div className="generated-wrap">
+        <div className="regenerate-bar">
+          <span>共 6 道题 · 难度自适应</span>
+          <button type="button" onClick={() => onGenerate("exercise")}>
+            <RefreshCw size={13} /> 换一批
+          </button>
+        </div>
+        <ExerciseBoard />
+      </div>
+    );
+  }
+  // review tab
+  if (!reviewReady) {
+    return (
+      <GenerateEmpty
+        kind="review"
+        title="还没有复习建议"
+        desc="结合本节重点和你过去的笔记，规划一份分天的复习方案。"
+        buttonLabel="生成复习建议"
+        loadingLabel="小智正在制定复习计划…"
+        generating={generating === "review"}
+        onGenerate={() => onGenerate("review")}
+      />
+    );
+  }
+  return (
+    <div className="generated-wrap">
+      <div className="regenerate-bar">
+        <span>3 天循序复习计划 · 个性化</span>
+        <button type="button" onClick={() => onGenerate("review")}>
+          <RefreshCw size={13} /> 重新生成
+        </button>
+      </div>
+      <ReviewBoard />
+    </div>
+  );
+}
+
+function GenerateEmpty({
+  kind,
+  title,
+  desc,
+  buttonLabel,
+  loadingLabel,
+  generating,
+  onGenerate,
+}: {
+  kind: "summary" | "exercise" | "review";
+  title: string;
+  desc: string;
+  buttonLabel: string;
+  loadingLabel: string;
+  generating: boolean;
+  onGenerate: () => void;
+}) {
+  const icon =
+    kind === "summary" ? <Wand2 size={26} /> :
+    kind === "exercise" ? <ClipboardList size={26} /> :
+    <CalendarCheck size={26} />;
+
+  return (
+    <div className="note-empty">
+      <div className="note-empty-icon">{icon}</div>
+      <h3>{title}</h3>
+      <p>{desc}</p>
+      <button
+        type="button"
+        className="primary-action note-empty-action"
+        onClick={onGenerate}
+        disabled={generating}
+      >
+        {generating ? (
+          <>
+            <Loader2 size={16} className="spin" /> {loadingLabel}
+          </>
+        ) : (
+          <>
+            <Sparkles size={16} /> {buttonLabel}
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
+
+function ExerciseBoard() {
+  const items = [
+    {
+      level: "基础",
+      tone: "low",
+      q: "对于函数 f(x,y)=x²+xy+y²−3x，求所有驻点。",
+      hint: "先求一阶偏导，令其同时为 0。",
+    },
+    {
+      level: "中等",
+      tone: "mid",
+      q: "用 Hessian 判别法判断 f(x,y)=x³−3xy²+y² 在驻点 (0,0) 是否取得极值。",
+      hint: "注意当判别式为 0 时 Hessian 失效。",
+    },
+    {
+      level: "拔高",
+      tone: "high",
+      q: "在约束 x²+y²=1 下求 f(x,y)=xy 的极值。",
+      hint: "可以使用拉格朗日乘子法或代入约束。",
+    },
+  ];
+  return (
+    <div className="exam-board">
+      {items.map((it, i) => (
+        <article className={`exam-card ${it.tone}`} key={i}>
+          <header>
+            <span className="exam-tag">{`Q${i + 1} · ${it.level}`}</span>
+            <strong>{it.q}</strong>
+          </header>
+          <p>💡 {it.hint}</p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function ReviewBoard() {
+  const days = [
+    { day: "今晚", title: "整理思路", desc: "回顾本节判别路径，把无约束/有约束的入口图画在笔记本第一页。", tone: "high" },
+    { day: "明天", title: "刷一组题", desc: "做小智推荐的测试题集（共 6 题），重点搞清楚 Hessian 判别失效的情况。", tone: "mid" },
+    { day: "第 3 天", title: "讲给同桌听", desc: "用费曼学习法把驻点 → 候选点 → 极值的判断逻辑讲给同桌听一遍。", tone: "low" },
+  ];
+  return (
+    <div className="exam-board">
+      {days.map((d, i) => (
+        <article className={`exam-card ${d.tone}`} key={i}>
+          <header>
+            <span className="exam-tag">{d.day}</span>
+            <strong>{d.title}</strong>
+          </header>
+          <p>{d.desc}</p>
+        </article>
+      ))}
+    </div>
+  );
 }
 
 function SummaryNote() {
@@ -943,16 +1760,20 @@ function MarketView({
   marketMajor,
   marketQuery,
   marketSchool,
+  purchasedIds,
   onPurchase,
+  onOpenPurchased,
   setMarketMajor,
   setMarketQuery,
   setMarketSchool,
 }: {
-  filteredMarket: typeof marketplaceNotes;
+  filteredMarket: MarketNote[];
   marketMajor: string;
   marketQuery: string;
   marketSchool: string;
-  onPurchase: (note: (typeof marketplaceNotes)[number]) => void;
+  purchasedIds: string[];
+  onPurchase: (note: MarketNote) => void;
+  onOpenPurchased: () => void;
   setMarketMajor: (value: string) => void;
   setMarketQuery: (value: string) => void;
   setMarketSchool: (value: string) => void;
@@ -963,7 +1784,11 @@ function MarketView({
         <div className="filter-row">
           <label className="market-search">
             <Search size={16} />
-            <input placeholder="搜索课程、学校、专业或作者" value={marketQuery} onChange={(event) => setMarketQuery(event.target.value)} />
+            <input
+              placeholder="搜索课程、学校、专业或作者"
+              value={marketQuery}
+              onChange={(event) => setMarketQuery(event.target.value)}
+            />
           </label>
           <select value={marketSchool} onChange={(event) => setMarketSchool(event.target.value)}>
             {["全部学校", "北京某大学", "上海某高校"].map((item) => (
@@ -976,115 +1801,218 @@ function MarketView({
             ))}
           </select>
         </div>
-        <div className="market-list">
-          {filteredMarket.map((note) => (
-            <article key={note.id}>
-              <div>
-                <span>{note.school} · {note.major}</span>
-                <h3>{note.title}</h3>
-                <p>{note.author} · 评分 {note.score} · 已购 {note.sold}</p>
-              </div>
-              <strong>{note.price} 积分</strong>
-              <button className="primary-action" onClick={() => onPurchase(note)}>
-                积分购买
+        {filteredMarket.length === 0 ? (
+          <div className="market-empty">
+            <Search size={32} />
+            <h3>没有找到匹配的笔记</h3>
+            <p>换个关键词或者清空筛选试试。</p>
+          </div>
+        ) : (
+          <div className="market-list">
+            {filteredMarket.map((note) => {
+              const purchased = purchasedIds.includes(note.id);
+              return (
+                <article key={note.id} className={purchased ? "is-purchased" : ""}>
+                  <div className="market-card-top">
+                    <span className="market-card-meta">
+                      {note.school} · {note.major}
+                    </span>
+                    <h3>{note.title}</h3>
+                    <p>{note.excerpt}</p>
+                  </div>
+                  <div className="market-card-tags">
+                    {note.tags.slice(0, 3).map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                  <div className="market-card-foot">
+                    <small>{note.author}</small>
+                    <strong>{note.price} 积分</strong>
+                  </div>
+                  {purchased ? (
+                    <button className="line-button" onClick={onOpenPurchased}>
+                      <Check size={15} /> 已购买
+                    </button>
+                  ) : (
+                    <button className="primary-action" onClick={() => onPurchase(note)}>
+                      立即购买
+                    </button>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+const ledgerEntries = [
+  ["开通会员奖励", "+6000", "2026-05-18 10:15:53"],
+  ["平台赠送", "+30000", "2026-04-03 00:18:12"],
+  ["购买医学统计学考前重点包", "-520", "2026-05-26 14:52:09"],
+  ["注册奖励", "+1000", "2026-04-02 11:35:34"],
+] as const;
+
+function CreditsPanel({
+  credits,
+  onClose,
+  onRecharge,
+}: {
+  credits: number;
+  onClose: () => void;
+  onRecharge: () => void;
+}) {
+  const [ledgerTab, setLedgerTab] = useState<"all" | "in" | "out">("all");
+
+  const filteredLedger = ledgerEntries.filter(([, amount]) => {
+    if (ledgerTab === "in") return amount.startsWith("+");
+    if (ledgerTab === "out") return amount.startsWith("-");
+    return true;
+  });
+
+  return (
+    <div className="credits-popover-backdrop" onClick={onClose} role="presentation">
+      <section
+        className="credits-popover"
+        role="dialog"
+        aria-label="积分明细"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button className="modal-close credits-popover-close" onClick={onClose} aria-label="关闭">
+          <X size={16} />
+        </button>
+        <header className="credits-popover-head">
+          <div>
+            <p>可用积分</p>
+            <strong>{credits}</strong>
+          </div>
+          <button type="button" className="line-button credits-recharge-btn" onClick={onRecharge}>
+            <CircleDollarSign size={15} />
+            充值
+          </button>
+        </header>
+        <div className="credits-popover-breakdown">
+          <div className="points-row total">
+            <span>积分合计</span>
+            <strong>{credits + 36980}</strong>
+          </div>
+          <div className="points-row">
+            <span>会员积分</span>
+            <strong>6000</strong>
+          </div>
+          <div className="points-row">
+            <span>任务积分</span>
+            <strong>1400</strong>
+          </div>
+          <div className="points-row">
+            <span>充值积分</span>
+            <strong>{Math.max(credits - 420, 0)}</strong>
+          </div>
+          <div className="points-row">
+            <span>赠送积分</span>
+            <strong>30000</strong>
+          </div>
+          <div className="expire-line">本月将过期积分 0</div>
+        </div>
+        <div className="credits-popover-ledger">
+          <div className="credits-ledger-head">
+            <h3>收支明细</h3>
+            <div className="wallet-tabs">
+              <button
+                type="button"
+                className={ledgerTab === "all" ? "active" : ""}
+                onClick={() => setLedgerTab("all")}
+              >
+                全部
               </button>
-            </article>
-          ))}
+              <button
+                type="button"
+                className={ledgerTab === "in" ? "active" : ""}
+                onClick={() => setLedgerTab("in")}
+              >
+                获取
+              </button>
+              <button
+                type="button"
+                className={ledgerTab === "out" ? "active" : ""}
+                onClick={() => setLedgerTab("out")}
+              >
+                支出
+              </button>
+            </div>
+          </div>
+          <div className="credits-ledger-list">
+            {filteredLedger.length ? (
+              filteredLedger.map(([name, amount, date]) => (
+                <div className="ledger-line" key={name}>
+                  <span title={name}>{name}</span>
+                  <strong className={amount.startsWith("+") ? "plus" : "minus"}>{amount}</strong>
+                  <time>{date}</time>
+                </div>
+              ))
+            ) : (
+              <p className="credits-ledger-empty">暂无记录</p>
+            )}
+          </div>
         </div>
       </section>
     </div>
   );
 }
 
-function WalletView({ credits, onRecharge }: { credits: number; onRecharge: () => void }) {
-  return (
-    <section className="wallet-page">
-      <div className="glass-card wallet-summary">
-        <div>
-          <p>积分</p>
-          <h2>{credits}</h2>
-        </div>
-        <button className="primary-action" onClick={onRecharge}>
-          <CircleDollarSign size={16} />
-          积分充值
-        </button>
-      </div>
-      <div className="glass-card points-card">
-        <div className="points-row total"><span>积分</span><strong>{credits + 36980}</strong></div>
-        <div className="points-row"><span>会员积分</span><strong>6000</strong></div>
-        <div className="points-row"><span>任务积分</span><strong>1400</strong></div>
-        <div className="points-row"><span>充值积分</span><strong>{credits - 420}</strong></div>
-        <div className="points-row"><span>赠送积分</span><strong>30000</strong></div>
-        <div className="expire-line">本月将过期积分 0</div>
-      </div>
-      <div className="glass-card wallet-detail">
-        <div className="section-head">
-          <div><p>积分明细</p><h2>收支记录</h2></div>
-          <div className="wallet-tabs"><button className="active">全部</button><button>获取</button><button>支出</button></div>
-        </div>
-        {[
-          ["开通会员奖励", "+6000", "2026-05-18 10:15:53"],
-          ["平台赠送", "+30000", "2026-04-03 00:18:12"],
-          ["购买医学统计学考前重点包", "-520", "2026-05-26 14:52:09"],
-          ["注册奖励", "+1000", "2026-04-02 11:35:34"],
-        ].map(([name, amount, date]) => (
-          <div className="ledger-line" key={name}>
-            <span>{name}</span>
-            <strong className={amount.startsWith("+") ? "plus" : "minus"}>{amount}</strong>
-            <time>{date}</time>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
+function AgentPanel({ recordState }: { recordState: RecordState; setNoteTab: (tab: NoteTab) => void; setView: (view: View) => void }) {
+  const subtitle =
+    recordState === "recording"
+      ? "正在为你记录课堂内容"
+      : recordState === "metadata"
+      ? "等待你补全课堂信息"
+      : recordState === "generating"
+      ? "AI 笔记生成中"
+      : "你的 AI 学习搭子，随时陪你聊";
 
-function AgentPanel({ recordState, setNoteTab, setView }: { recordState: RecordState; setNoteTab: (tab: NoteTab) => void; setView: (view: View) => void }) {
+  const quickAsks = [
+    "今天讲了什么？",
+    "帮我出 5 道复习题",
+    "把这一节讲给我听",
+  ];
+
   return (
     <aside className="xiaozhi-panel">
       <section className="agent-chat-card">
         <div className="agent-chat-head">
           <div>
-            <strong>小智 Agent</strong>
-            <span>{recordState === "recording" ? "正在执行课堂记录任务链" : "准备帮你开启下一节课"}</span>
+            <strong>小智</strong>
+            <span>{subtitle}</span>
           </div>
-          <Wand2 size={18} />
+          <span className="agent-avatar" aria-hidden="true">
+            <Wand2 size={16} />
+          </span>
         </div>
-        <div className="agent-task-chain">
-          {[
-            ["登录", "done"],
-            ["授权录音", recordState === "idle" ? "todo" : "done"],
-            ["实时转写", recordState === "recording" || recordState === "paused" ? "doing" : recordState === "idle" ? "todo" : "done"],
-            ["补全属性", recordState === "metadata" ? "doing" : recordState === "done" ? "done" : "todo"],
-            ["生成笔记", recordState === "done" ? "done" : "todo"],
-          ].map(([label, state]) => (
-            <div className={`task-dot ${state}`} key={label}>
-              <span />
-              {label}
-            </div>
-          ))}
-        </div>
-        <div className="chat-stream">
-          <div className="chat-row agent">
-            <span>小智</span>
-            <p>你好，我是小智。你可以先直接开始录音，结束后我会提醒你补全课堂属性，并把音频、照片和转写内容合并入库。</p>
+
+        {/* 默认初始化状态 · 开场白 + 引导 chip */}
+        <div className="agent-welcome">
+          <div className="agent-welcome-bubble">
+            <p className="aw-hello">Hi，我是小智 👋</p>
+            <p>
+              你的 AI 学习搭子。上完课、做完题，把整理的事情交给我，
+              你可以随时来这里追问任何一句没听懂的话。
+            </p>
           </div>
-          <div className="chat-row user">
-            <span>你</span>
-            <p>录音时可以先不填课程信息吗？</p>
-          </div>
-          <div className="chat-row agent">
-            <span>小智</span>
-            <p>可以。录音完成后我会弹出属性补全窗，学校、教室、老师和课程名称会用于归档与发布。</p>
+          <div className="agent-welcome-tips">
+            <span className="aw-tip-label">不知道问啥？试试：</span>
+            {quickAsks.map((q) => (
+              <button key={q} type="button" className="aw-chip">
+                {q}
+              </button>
+            ))}
           </div>
         </div>
-        <div className="agent-suggestions">
-          <button onClick={() => { setView("notes"); setNoteTab("exam"); }}>考试预测</button>
-          <button onClick={() => setView("market")}>去广场找笔记</button>
-        </div>
+
         <div className="agent-input">
-          <input placeholder="问小智：帮我解释这个知识点..." />
-          <button>
+          <input placeholder="问小智任何一句听不懂的话…" />
+          <button aria-label="发送">
             <Send size={16} />
           </button>
         </div>
@@ -1094,43 +2022,41 @@ function AgentPanel({ recordState, setNoteTab, setView }: { recordState: RecordS
 }
 
 function MetadataModal({
-  isMetaValid,
   lessonMeta,
-  metaTouched,
   onClose,
   onSubmit,
   setLessonMeta,
 }: {
-  isMetaValid: boolean;
   lessonMeta: LessonMeta;
-  metaTouched: boolean;
   onClose: () => void;
   onSubmit: () => void;
   setLessonMeta: (value: LessonMeta) => void;
 }) {
   const metaFields: Array<[keyof LessonMeta, string, string]> = [
+    ["course", "课程", "如：高等数学"],
+    ["teacher", "老师", "如：张老师"],
     ["school", "学校", "如：北京某大学"],
-    ["classroom", "教室", "如：A203 / 腾讯会议"],
-    ["teacher", "授课老师", "如：张老师"],
-    ["course", "课程名称", "如：高等数学"],
+    ["classroom", "教室", "如：A203"],
   ];
 
   return (
     <div className="modal-backdrop">
       <section className="compact-modal wide">
-        <button className="modal-close" onClick={onClose}><X size={16} /></button>
-        <h2>补全课堂属性</h2>
-        <p>这些信息会写入音频属性，用于本地归档、AI 总结上下文和发布到知识广场。</p>
+        <button className="modal-close" onClick={onClose} aria-label="跳过课堂信息"><X size={16} /></button>
+        <h2>课堂信息确认</h2>
+        <p>是否已录入学校、教室、老师和课程？这些信息不是必填，跳过后也会继续生成笔记。</p>
         <div className="meta-form compact">
           {metaFields.map(([key, label, placeholder]) => (
-            <label className={metaTouched && !lessonMeta[key] ? "field-error" : ""} key={key}>
+            <label key={key}>
               <span>{label}</span>
               <input placeholder={placeholder} value={lessonMeta[key]} onChange={(event) => setLessonMeta({ ...lessonMeta, [key]: event.target.value })} />
             </label>
           ))}
         </div>
-        {metaTouched && !isMetaValid && <div className="inline-error"><AlertCircle size={15} /> 请补全四项课堂属性后再入库。</div>}
-        <button className="primary-action full" onClick={onSubmit}>保存并生成 AI 笔记</button>
+        <div className="meta-actions">
+          <button className="secondary-action" onClick={onClose}>跳过，直接生成</button>
+          <button className="primary-action" onClick={onSubmit}>保存并生成笔记</button>
+        </div>
       </section>
     </div>
   );
@@ -1153,17 +2079,99 @@ function LoginModal({
   setCode: (value: string) => void;
   setPhone: (value: string) => void;
 }) {
+  const [tab, setTab] = useState<"phone" | "email">("phone");
+  const [agreed, setAgreed] = useState(true);
+
   return (
     <div className="modal-backdrop">
-      <section className="compact-modal">
+      <section className="login-card">
         <button className="modal-close" onClick={onClose}>
           <X size={16} />
         </button>
-        <h2>手机号登录</h2>
-        <p>登录后可录音入库、发布笔记、购买校园资料。</p>
-        <input placeholder="请输入手机号" value={phone} onChange={(event) => setPhone(event.target.value)} />
-        {isCodeStep && <input placeholder="验证码 123456" value={code} onChange={(event) => setCode(event.target.value)} />}
-        <button className="primary-action full" onClick={onSubmit}>{isCodeStep ? "登录" : "获取验证码"}</button>
+
+        {/* 左侧 · 学生版 hero */}
+        <aside className="login-hero">
+          <header className="login-hero-brand">
+            <span className="login-brand-mark">百</span>
+            <strong>百智</strong>
+            <span className="login-brand-pill">学生版</span>
+          </header>
+          <h2>
+            欢迎来到<br />
+            <em>百智 · 学生版</em>
+          </h2>
+          <p>能听 · 能记 · 能写，专为同学打造的 AI 学习工作台</p>
+          <div className="login-hero-decor" aria-hidden="true">
+            <span className="ld-orb" />
+            <span className="ld-ring" />
+            <span className="ld-mic">
+              <Mic size={22} />
+            </span>
+            <span className="ld-bars">
+              <i /><i /><i /><i /><i />
+            </span>
+          </div>
+        </aside>
+
+        {/* 右侧 · 登录表单 */}
+        <div className="login-form-side">
+          <h3>欢迎登录</h3>
+          <p className="login-sub">新用户将自动注册并赠送 200 积分 🎁</p>
+
+          <div className="login-tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "phone"}
+              className={tab === "phone" ? "active" : ""}
+              onClick={() => setTab("phone")}
+            >
+              手机号登录
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "email"}
+              className={tab === "email" ? "active" : ""}
+              onClick={() => setTab("email")}
+            >
+              邮箱登录
+            </button>
+          </div>
+
+          <div className="login-field">
+            <input
+              placeholder={tab === "phone" ? "请输入手机号" : "请输入邮箱"}
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+            />
+          </div>
+          {isCodeStep && (
+            <div className="login-field with-action">
+              <input
+                placeholder="请输入验证码"
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+              />
+              <button type="button" className="field-action">已发送</button>
+            </div>
+          )}
+
+          <label className="login-agreement">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(event) => setAgreed(event.target.checked)}
+            />
+            <span>
+              我已阅读并同意 <a href="#">《用户服务协议》</a> 和 <a href="#">《隐私政策》</a>
+            </span>
+          </label>
+
+          <button className="login-submit" onClick={onSubmit} disabled={!agreed}>
+            {isCodeStep ? "登 录" : "获取验证码"}
+          </button>
+        </div>
       </section>
     </div>
   );
@@ -1177,50 +2185,158 @@ function PermissionModal({ onAuthorize, onClose, permission }: { onAuthorize: ()
           <X size={16} />
         </button>
         <ShieldCheck className="modal-symbol" size={42} />
-        <h2>录音权限说明</h2>
-        <p>本次录音会同时采集麦克风人声和电脑内部声音。请授权麦克风与系统音频，音频仅用于转写、总结和本地知识库入库。</p>
+        <h2>录音权限</h2>
+        <p>需要使用你的麦克风录音。音频只会用来生成你的个人笔记，不会上传到任何外部位置。</p>
         <div className="permission-row">
           <span><Mic size={18} /> 麦克风</span>
-          <span><AudioLines size={18} /> 系统音频</span>
+          <span><AudioLines size={18} /> 系统声音</span>
         </div>
-        <button className="primary-action full" onClick={onAuthorize}>{permission === "requesting" ? "等待授权中" : "开始授权"}</button>
+        <button className="primary-action full" onClick={onAuthorize}>{permission === "requesting" ? "授权中…" : "允许并开始录音"}</button>
       </section>
     </div>
   );
 }
 
 function CertificationModal({ student, setStudent, onClose, onSubmit }: { student: StudentProfile; setStudent: (value: StudentProfile) => void; onClose: () => void; onSubmit: () => void }) {
+  const [photoName, setPhotoName] = useState("");
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const photoUrlRef = useRef<string | null>(null);
+
+  const clearPhoto = () => {
+    if (photoUrlRef.current) {
+      URL.revokeObjectURL(photoUrlRef.current);
+      photoUrlRef.current = null;
+    }
+    setPhotoName("");
+    setPhotoPreview(null);
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  };
+
+  const pickPhoto = () => {
+    photoInputRef.current?.click();
+  };
+
+  const handlePhotoChange = (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+    clearPhoto();
+    const url = URL.createObjectURL(file);
+    photoUrlRef.current = url;
+    setPhotoName(file.name);
+    setPhotoPreview(url);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+    };
+  }, []);
+
+  const submit = () => {
+    setSubmitting(true);
+    window.setTimeout(() => {
+      setSubmitting(false);
+      onSubmit();
+    }, 650);
+  };
+
   return (
     <div className="modal-backdrop">
       <section className="compact-modal wide">
         <button className="modal-close" onClick={onClose}><X size={16} /></button>
         <h2>学生身份认证</h2>
-        <p>认证后可发布到校园知识广场，并自动把学校信息带入录音属性。</p>
-        <input placeholder="学校名称" value={student.school} onChange={(event) => setStudent({ ...student, school: event.target.value })} />
+        <p>认证后可以在校园知识广场发布笔记。信息只用于同学间互信。</p>
+        <input placeholder="学校" value={student.school} onChange={(event) => setStudent({ ...student, school: event.target.value })} />
         <input placeholder="专业" value={student.major} onChange={(event) => setStudent({ ...student, major: event.target.value })} />
         <input placeholder="班级" value={student.className} onChange={(event) => setStudent({ ...student, className: event.target.value })} />
-        <button className="line-button full"><Upload size={16} /> 上传学生证照片 Mock</button>
-        <button className="primary-action full" onClick={onSubmit}>提交认证</button>
+        <input
+          ref={photoInputRef}
+          hidden
+          type="file"
+          accept="image/*"
+          onChange={(event) => {
+            handlePhotoChange(event.target.files);
+            event.target.value = "";
+          }}
+        />
+        <button
+          className={`student-card-upload ${photoName ? "is-uploaded" : ""}`}
+          onClick={pickPhoto}
+          type="button"
+        >
+          {photoPreview ? (
+            <img className="student-card-thumb" src={photoPreview} alt="学生证预览" />
+          ) : photoName ? (
+            <Check size={17} />
+          ) : (
+            <Upload size={17} />
+          )}
+          <span>
+            <strong>{photoName ? "学生证照片已选择" : "上传学生证照片"}</strong>
+            <small>{photoName || "点击从相册选择照片"}</small>
+          </span>
+        </button>
+        {photoName && (
+          <button className="line-button full" type="button" onClick={pickPhoto}>
+            重新选择
+          </button>
+        )}
+        <button className="primary-action full" onClick={submit} disabled={submitting}>
+          {submitting ? "认证中…" : "提交认证"}
+        </button>
       </section>
     </div>
   );
 }
 
-function PurchaseModal({ credits, note, onClose, onConfirm, onRecharge, status }: { credits: number; note: (typeof marketplaceNotes)[number]; onClose: () => void; onConfirm: () => void; onRecharge: () => void; status: "idle" | "success" | "insufficient" }) {
+function PurchaseModal({
+  credits,
+  note,
+  onClose,
+  onConfirm,
+  onRecharge,
+  onGoToNotes,
+  status,
+}: {
+  credits: number;
+  note: (typeof marketplaceNotes)[number];
+  onClose: () => void;
+  onConfirm: () => void;
+  onRecharge: () => void;
+  onGoToNotes: () => void;
+  status: "idle" | "success" | "insufficient";
+}) {
+  if (status === "success") {
+    return (
+      <div className="modal-backdrop">
+        <section className="compact-modal">
+          <button className="modal-close" onClick={onClose}><X size={16} /></button>
+          <div className="success-symbol"><Check size={26} /></div>
+          <h2>购买成功</h2>
+          <p>「{note.title}」已加入你的笔记库。</p>
+          <button className="primary-action full" onClick={onGoToNotes}>去笔记里查看</button>
+          <button className="line-button full" onClick={onClose}>继续逛广场</button>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="modal-backdrop">
       <section className="compact-modal">
         <button className="modal-close" onClick={onClose}><X size={16} /></button>
-        <h2>积分购买</h2>
+        <h2>购买这份笔记</h2>
         <p>{note.title}</p>
         <div className="purchase-box">
-          <span>当前余额 {credits}</span>
+          <span>当前余额 {credits} 积分</span>
           <strong>{note.price} 积分</strong>
         </div>
-        {status === "insufficient" && <div className="inline-error"><AlertCircle size={15} /> 余额不足，请先充值或选择低价笔记。</div>}
-        {status === "success" && <div className="success-line"><Check size={15} /> 购买成功，已加入 AI 笔记资产库。</div>}
+        {status === "insufficient" && <div className="inline-error"><AlertCircle size={15} /> 余额不足，先充点积分吧</div>}
         <button className="primary-action full" onClick={onConfirm}>确认购买</button>
-        <button className="line-button full" onClick={onRecharge}>模拟充值 200 积分</button>
+        <button className="line-button full" onClick={onRecharge}>充值 200 积分（演示）</button>
       </section>
     </div>
   );
@@ -1234,6 +2350,150 @@ function ConfirmModal({ body, confirmText, onCancel, onConfirm, title }: { body:
         <p>{body}</p>
         <button className="line-button full" onClick={onCancel}>取消</button>
         <button className="primary-action full" onClick={onConfirm}>{confirmText}</button>
+      </section>
+    </div>
+  );
+}
+
+function PublishModal({
+  lessonMeta,
+  onClose,
+  onConfirm,
+}: {
+  lessonMeta: LessonMeta;
+  onClose: () => void;
+  onConfirm: (payload: { meta: LessonMeta; price: number }) => void;
+}) {
+  const [price, setPrice] = useState(30);
+  const [draftMeta, setDraftMeta] = useState<LessonMeta>({
+    school: lessonMeta.school || "北京某大学",
+    classroom: lessonMeta.classroom || "A203",
+    teacher: lessonMeta.teacher || "授课老师",
+    course: lessonMeta.course || "多元函数极值",
+  });
+  const [scope, setScope] = useState<"public" | "school">("school");
+  const [allowPreview, setAllowPreview] = useState(true);
+
+  const presets = [10, 20, 30, 50];
+  const metaFields: Array<[keyof LessonMeta, string]> = [
+    ["school", "学校"],
+    ["classroom", "教室"],
+    ["teacher", "授课老师"],
+    ["course", "课程名称"],
+  ];
+
+  return (
+    <div className="modal-backdrop">
+      <section className="compact-modal wide">
+        <button className="modal-close" onClick={onClose}><X size={16} /></button>
+        <h2>发布到知识广场</h2>
+        <p>确认笔记信息和积分价值后，会生成一张学习卡片放入知识广场。</p>
+
+        <div className="publish-section">
+          <label className="publish-section-title">课堂属性</label>
+          <div className="publish-meta-grid">
+            {metaFields.map(([key, label]) => (
+              <label key={key}>
+                <span>{label}</span>
+                <input
+                  value={draftMeta[key]}
+                  onChange={(event) => setDraftMeta({ ...draftMeta, [key]: event.target.value })}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="publish-section">
+          <label className="publish-section-title">设置积分价格</label>
+          <div className="preset-grid four">
+            {presets.map((value) => (
+              <button
+                key={value}
+                className={price === value ? "active" : ""}
+                onClick={() => setPrice(value)}
+              >
+                <strong>{value}</strong>
+                <span>积分</span>
+              </button>
+            ))}
+          </div>
+          <input
+            type="number"
+            value={price}
+            min={1}
+            max={999}
+            onChange={(event) => setPrice(Number(event.target.value) || 0)}
+            placeholder="自定义价格"
+          />
+        </div>
+
+        <div className="publish-section">
+          <label className="publish-section-title">可见范围</label>
+          <div className="segmented">
+            <button className={scope === "school" ? "active" : ""} onClick={() => setScope("school")}>
+              本校同学
+            </button>
+            <button className={scope === "public" ? "active" : ""} onClick={() => setScope("public")}>
+              全平台公开
+            </button>
+          </div>
+        </div>
+
+        <label className="publish-toggle">
+          <input type="checkbox" checked={allowPreview} onChange={(event) => setAllowPreview(event.target.checked)} />
+          <div>
+            <strong>允许免费试读前 3 段</strong>
+            <span>同学可以预览部分内容再决定是否购买</span>
+          </div>
+        </label>
+
+        <button className="primary-action full" disabled={price < 1} onClick={() => onConfirm({ meta: draftMeta, price })}>
+          确认发布
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function RechargeModal({ onClose, onConfirm }: { onClose: () => void; onConfirm: (amount: number) => void }) {
+  const [selected, setSelected] = useState(500);
+  const packages: Array<{ amount: number; bonus: number; price: string }> = [
+    { amount: 100, bonus: 0, price: "¥ 10" },
+    { amount: 500, bonus: 50, price: "¥ 50" },
+    { amount: 1000, bonus: 150, price: "¥ 100" },
+    { amount: 3000, bonus: 600, price: "¥ 300" },
+  ];
+
+  return (
+    <div className="modal-backdrop">
+      <section className="compact-modal wide">
+        <button className="modal-close" onClick={onClose}><X size={16} /></button>
+        <h2>积分充值</h2>
+        <p>选择充值套餐，购买广场笔记或解锁会员特权。</p>
+
+        <div className="recharge-grid">
+          {packages.map((pkg) => (
+            <button
+              key={pkg.amount}
+              className={`recharge-pkg ${selected === pkg.amount ? "active" : ""}`}
+              onClick={() => setSelected(pkg.amount)}
+            >
+              <strong>
+                {pkg.amount}
+                {pkg.bonus > 0 && <em>+{pkg.bonus}</em>}
+              </strong>
+              <span>{pkg.price}</span>
+            </button>
+          ))}
+        </div>
+
+        <button className="primary-action full" onClick={() => {
+          const pkg = packages.find((p) => p.amount === selected);
+          onConfirm((pkg?.amount ?? 0) + (pkg?.bonus ?? 0));
+        }}>
+          确认支付（演示）
+        </button>
       </section>
     </div>
   );
