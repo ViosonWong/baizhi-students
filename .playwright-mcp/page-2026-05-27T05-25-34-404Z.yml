@@ -1,0 +1,189 @@
+- main [ref=e3]:
+  - complementary [ref=e4]:
+    - button "百智学生版首页" [ref=e5] [cursor=pointer]:
+      - img [ref=e6]
+    - button "首页" [ref=e18] [cursor=pointer]:
+      - img [ref=e19]
+      - generic [ref=e22]: 首页
+    - button "今日课堂" [ref=e23] [cursor=pointer]:
+      - img [ref=e24]
+      - generic [ref=e27]: 今日课堂
+    - button "AI 笔记" [active] [ref=e28] [cursor=pointer]:
+      - img [ref=e29]
+      - generic [ref=e32]: AI 笔记
+    - button "校园知识广场" [ref=e33] [cursor=pointer]:
+      - img [ref=e34]
+      - generic [ref=e38]: 校园知识广场
+    - button "积分钱包" [ref=e39] [cursor=pointer]:
+      - img [ref=e40]
+      - generic [ref=e44]: 积分钱包
+    - button "立即登录" [ref=e45] [cursor=pointer]:
+      - img [ref=e47]
+      - strong [ref=e51]: 立即登录
+  - generic [ref=e52]:
+    - generic [ref=e54]:
+      - paragraph [ref=e55]: 百智学生版
+      - heading "AI 笔记资产库" [level=1] [ref=e168]
+    - generic [ref=e169]:
+      - generic [ref=e170]:
+        - generic [ref=e171]:
+          - generic [ref=e172]:
+            - paragraph [ref=e173]: 全部录音
+            - heading "课堂文件" [level=2] [ref=e174]
+          - generic [ref=e175]: 6 条
+        - generic [ref=e176]:
+          - article [ref=e177] [cursor=pointer]:
+            - img [ref=e179]
+            - generic [ref=e183]:
+              - strong [ref=e184]: 高数第 8 讲：多元函数极值
+              - paragraph [ref=e185]: 2026 春季学期 / 高等数学
+            - generic [ref=e186]: 录音文件
+            - generic [ref=e187]: AI 总结中
+          - article [ref=e188] [cursor=pointer]:
+            - img [ref=e190]
+            - generic [ref=e194]:
+              - strong [ref=e195]: 数据结构：图的遍历
+              - paragraph [ref=e196]: 计算机科学 / 数据结构
+            - generic [ref=e197]: 录音文件
+            - generic [ref=e198]: 上传至云端
+          - article [ref=e199] [cursor=pointer]:
+            - img [ref=e201]
+            - generic [ref=e205]:
+              - strong [ref=e206]: 宏观经济学：通胀与就业
+              - paragraph [ref=e207]: 经济管理 / 宏观经济学
+            - generic [ref=e208]: 录音文件
+            - generic [ref=e209]: 转码中
+          - article [ref=e210] [cursor=pointer]:
+            - img [ref=e212]
+            - generic [ref=e216]:
+              - strong [ref=e217]: 英语听力：学术讲座精听
+              - paragraph [ref=e218]: 外语学院 / 英语听力
+            - generic [ref=e219]: 录音文件
+            - generic [ref=e220]: 暂停中
+          - article [ref=e221] [cursor=pointer]:
+            - img [ref=e223]
+            - generic [ref=e227]:
+              - strong [ref=e228]: 线性代数：矩阵特征值
+              - paragraph [ref=e229]: 2026 春季学期 / 线性代数
+            - generic [ref=e230]: 录音文件
+            - generic [ref=e231]: 录音中
+          - article [ref=e232] [cursor=pointer]:
+            - img [ref=e234]
+            - generic [ref=e237]:
+              - strong [ref=e238]: 计算机网络：TCP 拥塞控制
+              - paragraph [ref=e239]: 计算机科学 / 计算机网络
+            - generic [ref=e240]: 转译文本
+            - generic [ref=e241]: 已入库
+      - generic [ref=e242]:
+        - generic [ref=e243]:
+          - generic [ref=e244]:
+            - paragraph [ref=e245]: 高数第 8 讲
+            - heading "多元函数极值" [level=2] [ref=e246]
+          - button "发布到知识广场" [ref=e247] [cursor=pointer]:
+            - img [ref=e248]
+            - text: 发布到知识广场
+        - generic [ref=e252]:
+          - button [ref=e253] [cursor=pointer]:
+            - img [ref=e254]
+          - generic [ref=e257]: 0:30
+          - generic [ref=e260]: 34:24
+          - button "1x" [ref=e261] [cursor=pointer]
+        - generic [ref=e262]:
+          - button "转译文本" [ref=e263] [cursor=pointer]
+          - button "智能总结" [ref=e264] [cursor=pointer]
+          - button "考试预测" [ref=e265] [cursor=pointer]
+        - generic [ref=e266]:
+          - generic [ref=e267]:
+            - generic [ref=e268]: ASR 转写完成
+            - generic [ref=e269]: 6 段说话人识别
+            - generic [ref=e270]: 平均置信度 96%
+          - article [ref=e271]:
+            - generic [ref=e272]:
+              - generic [ref=e273]:
+                - strong [ref=e274]: Speaker A
+                - generic [ref=e275]: 授课老师
+              - time [ref=e276]: 14:30:20 - 14:30:48
+            - paragraph [ref=e277]: 各位好，今天我们进入多元函数极值。先记住一个判断顺序：第一，看有没有约束条件；第二，找驻点；第三，再决定用 Hessian 判别还是拉格朗日乘子法。
+            - generic [ref=e278]:
+              - generic [ref=e279]: PPT 第 12 页
+              - generic [ref=e280]: 置信度 98%
+          - article [ref=e281]:
+            - generic [ref=e282]:
+              - generic [ref=e283]:
+                - strong [ref=e284]: Speaker B
+                - generic [ref=e285]: 学生提问
+              - time [ref=e286]: 14:30:49 - 14:31:08
+            - paragraph [ref=e287]: 老师，如果题目只给了一个函数，没有写约束，是不是就直接对 x 和 y 分别求偏导，然后令它们等于零？
+            - generic [ref=e288]:
+              - generic [ref=e289]: 课堂问答
+              - generic [ref=e290]: 置信度 93%
+          - article [ref=e291]:
+            - generic [ref=e292]:
+              - generic [ref=e293]:
+                - strong [ref=e294]: Speaker A
+                - generic [ref=e295]: 授课老师
+              - time [ref=e296]: 14:31:09 - 14:31:42
+            - paragraph [ref=e297]: 对。无约束极值先求一阶偏导，解出所有驻点。注意，驻点只是候选点，不等于一定有极值。接下来要看二阶偏导组成的 Hessian 矩阵，也就是 A、B、C 这三个量。
+            - generic [ref=e298]:
+              - generic [ref=e299]: 板书照片 01
+              - generic [ref=e300]: 置信度 97%
+          - article [ref=e301]:
+            - generic [ref=e302]:
+              - generic [ref=e303]:
+                - strong [ref=e304]: Speaker C
+                - generic [ref=e305]: 学生追问
+              - time [ref=e306]: 14:31:43 - 14:32:16
+            - paragraph [ref=e307]: 那如果 Hessian 判别里面 B 平方减 AC 等于零，这种临界情况考试里应该怎么处理？
+            - generic [ref=e308]:
+              - generic [ref=e309]: 课堂问答
+              - generic [ref=e310]: 置信度 91%
+          - article [ref=e311]:
+            - generic [ref=e312]:
+              - generic [ref=e313]:
+                - strong [ref=e314]: Speaker A
+                - generic [ref=e315]: 授课老师
+              - time [ref=e316]: 14:32:17 - 14:33:05
+            - paragraph [ref=e317]: 等于零时二阶判别法失效，不能直接下结论。你们要回到函数定义，沿不同方向代入观察增减性。考试里最容易扣分的地方，就是看到判别式为零还强行写极大或极小。
+            - generic [ref=e318]:
+              - generic [ref=e319]: 重点标记
+              - generic [ref=e320]: 置信度 96%
+          - article [ref=e321]:
+            - generic [ref=e322]:
+              - generic [ref=e323]:
+                - strong [ref=e324]: Speaker A
+                - generic [ref=e325]: 授课老师
+              - time [ref=e326]: 14:33:06 - 14:33:34
+            - paragraph [ref=e327]: 如果出现约束条件，比如 x 平方加 y 平方等于 1，就不要直接套 Hessian。先构造拉格朗日函数，再把原函数和约束方程一起联立求解。
+            - generic [ref=e328]:
+              - generic [ref=e329]: PPT 第 13 页
+              - generic [ref=e330]: 置信度 98%
+  - complementary [ref=e331]:
+    - generic [ref=e332]:
+      - generic [ref=e333]:
+        - generic [ref=e334]:
+          - strong [ref=e335]: 小智 Agent
+          - generic [ref=e336]: 准备帮你开启下一节课
+        - img [ref=e337]
+      - generic [ref=e340]:
+        - generic [ref=e341]: 登录
+        - generic [ref=e343]: 授权录音
+        - generic [ref=e345]: 实时转写
+        - generic [ref=e347]: 补全属性
+        - generic [ref=e349]: 生成笔记
+      - generic [ref=e351]:
+        - generic [ref=e352]:
+          - text: 小智
+          - paragraph [ref=e353]: 你好，我是小智。你可以先直接开始录音，结束后我会提醒你补全课堂属性，并把音频、照片和转写内容合并入库。
+        - generic [ref=e354]:
+          - text: 你
+          - paragraph [ref=e355]: 录音时可以先不填课程信息吗？
+        - generic [ref=e356]:
+          - text: 小智
+          - paragraph [ref=e357]: 可以。录音完成后我会弹出属性补全窗，学校、教室、老师和课程名称会用于归档与发布。
+      - generic [ref=e358]:
+        - button "考试预测" [ref=e359] [cursor=pointer]
+        - button "去广场找笔记" [ref=e360] [cursor=pointer]
+      - generic [ref=e361]:
+        - textbox "问小智：帮我解释这个知识点..." [ref=e362]
+        - button [ref=e363] [cursor=pointer]:
+          - img [ref=e364]

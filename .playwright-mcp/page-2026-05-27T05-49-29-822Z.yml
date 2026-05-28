@@ -1,0 +1,106 @@
+- main [ref=e3]:
+  - complementary [ref=e4]:
+    - button "百智学生版首页" [ref=e5] [cursor=pointer]:
+      - img [ref=e6]
+    - navigation [ref=e18]:
+      - button "首页" [ref=e19] [cursor=pointer]:
+        - img [ref=e20]
+        - generic [ref=e23]: 首页
+      - button "今日课堂" [ref=e24] [cursor=pointer]:
+        - img [ref=e25]
+        - generic [ref=e28]: 今日课堂
+      - button "AI 笔记" [ref=e29] [cursor=pointer]:
+        - img [ref=e30]
+        - generic [ref=e33]: AI 笔记
+      - button "校园知识广场" [active] [ref=e34] [cursor=pointer]:
+        - img [ref=e35]
+        - generic [ref=e39]: 校园知识广场
+      - button "积分钱包" [ref=e40] [cursor=pointer]:
+        - img [ref=e41]
+        - generic [ref=e45]: 积分钱包
+    - button "快捷录音" [ref=e46] [cursor=pointer]:
+      - img [ref=e48]
+  - generic [ref=e51]:
+    - generic [ref=e52]:
+      - generic [ref=e53]:
+        - generic [ref=e54]: BAIZHI · STUDENT
+        - generic [ref=e56]: v1.0 · 学生工作台
+      - heading "校园知识广场" [level=1] [ref=e409]
+    - generic [ref=e58]:
+      - generic [ref=e59]: 小智在线
+      - button "搜索" [ref=e61] [cursor=pointer]:
+        - img [ref=e62]
+      - button "通知" [ref=e65] [cursor=pointer]:
+        - img [ref=e66]
+      - button "未登录 立即登录" [ref=e70] [cursor=pointer]:
+        - img [ref=e72]
+        - generic [ref=e76]:
+          - generic [ref=e77]: 未登录
+          - strong [ref=e78]: 立即登录
+  - generic [ref=e411]:
+    - generic [ref=e412]:
+      - generic [ref=e413]:
+        - img [ref=e414]
+        - textbox [ref=e417]:
+          - /placeholder: 搜索课程、学校、专业或作者
+      - combobox [ref=e418]:
+        - option "全部学校" [selected]
+        - option "北京某大学"
+        - option "上海某高校"
+      - combobox [ref=e419]:
+        - option "全部专业" [selected]
+        - option "计算机科学"
+        - option "临床医学"
+        - option "经济管理"
+    - generic [ref=e420]:
+      - article [ref=e421]:
+        - generic [ref=e422]:
+          - generic [ref=e423]: 北京某大学 · 计算机科学
+          - heading "高数第 8 讲：多元函数极值" [level=3] [ref=e424]
+          - paragraph [ref=e425]: 林同学 · 评分 4.9 · 已购 126
+        - strong [ref=e426]: 30 积分
+        - button "积分购买" [ref=e427] [cursor=pointer]
+      - article [ref=e428]:
+        - generic [ref=e429]:
+          - generic [ref=e430]: 北京某大学 · 临床医学
+          - heading "医学统计学考前重点包" [level=3] [ref=e431]
+          - paragraph [ref=e432]: 周同学 · 评分 4.8 · 已购 42
+        - strong [ref=e433]: 520 积分
+        - button "积分购买" [ref=e434] [cursor=pointer]
+      - article [ref=e435]:
+        - generic [ref=e436]:
+          - generic [ref=e437]: 上海某高校 · 经济管理
+          - heading "宏观经济学期中复习清单" [level=3] [ref=e438]
+          - paragraph [ref=e439]: 沈同学 · 评分 4.7 · 已购 67
+        - strong [ref=e440]: 24 积分
+        - button "积分购买" [ref=e441] [cursor=pointer]
+  - complementary [ref=e354]:
+    - generic [ref=e355]:
+      - generic [ref=e356]:
+        - generic [ref=e357]:
+          - strong [ref=e358]: 小智 Agent
+          - generic [ref=e359]: 准备帮你开启下一节课
+        - img [ref=e360]
+      - generic [ref=e363]:
+        - generic [ref=e364]: 登录
+        - generic [ref=e366]: 授权录音
+        - generic [ref=e368]: 实时转写
+        - generic [ref=e370]: 补全属性
+        - generic [ref=e372]: 生成笔记
+      - generic [ref=e374]:
+        - generic [ref=e375]:
+          - text: 小智
+          - paragraph [ref=e376]: 你好，我是小智。你可以先直接开始录音，结束后我会提醒你补全课堂属性，并把音频、照片和转写内容合并入库。
+        - generic [ref=e377]:
+          - text: 你
+          - paragraph [ref=e378]: 录音时可以先不填课程信息吗？
+        - generic [ref=e379]:
+          - text: 小智
+          - paragraph [ref=e380]: 可以。录音完成后我会弹出属性补全窗，学校、教室、老师和课程名称会用于归档与发布。
+      - generic [ref=e381]:
+        - button "考试预测" [ref=e382] [cursor=pointer]
+        - button "去广场找笔记" [ref=e383] [cursor=pointer]
+      - generic [ref=e384]:
+        - textbox "问小智：帮我解释这个知识点..." [ref=e385]
+        - button [ref=e386] [cursor=pointer]:
+          - img [ref=e387]

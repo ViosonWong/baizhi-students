@@ -1,0 +1,169 @@
+- main [ref=e3]:
+  - complementary [ref=e4]:
+    - button "百智学生版首页" [ref=e5] [cursor=pointer]:
+      - img [ref=e6]
+    - navigation [ref=e18]:
+      - button "首页" [ref=e19] [cursor=pointer]:
+        - img [ref=e20]
+        - generic [ref=e23]: 首页
+      - button "今日课堂" [ref=e24] [cursor=pointer]:
+        - img [ref=e25]
+        - generic [ref=e28]: 今日课堂
+      - button "AI 笔记" [ref=e29] [cursor=pointer]:
+        - img [ref=e30]
+        - generic [ref=e33]: AI 笔记
+      - button "知识广场" [ref=e34] [cursor=pointer]:
+        - img [ref=e35]
+        - generic [ref=e39]: 知识广场
+      - button "积分" [ref=e40] [cursor=pointer]:
+        - img [ref=e41]
+        - generic [ref=e45]: 积分
+  - generic [ref=e46]:
+    - generic [ref=e47]:
+      - generic [ref=e49]: 百智学生版
+      - heading "AI学习工作台" [level=1] [ref=e51]
+    - button "未登录 立即登录" [ref=e53] [cursor=pointer]:
+      - img [ref=e55]
+      - generic [ref=e59]:
+        - generic [ref=e60]: 未登录
+        - strong [ref=e61]: 立即登录
+  - generic [ref=e63]:
+    - generic [ref=e65]:
+      - generic [ref=e66]:
+        - generic [ref=e67]: 🎒
+        - text: 嗨！今天又是元气满满的一天
+      - heading "开麦听课 笔记自己长出来 ✦" [level=2] [ref=e68]:
+        - emphasis [ref=e69]: 开麦听课
+        - generic [ref=e70]: 笔记自己长出来 ✦
+      - paragraph [ref=e71]: 录音、板书、错题都交给小智，下课直接收获一份能复习、能追问、能分享的学习资产。
+    - generic [ref=e72]:
+      - generic [ref=e73]:
+        - generic [ref=e75]:
+          - heading "今天想怎么学？" [level=3] [ref=e76]
+          - paragraph [ref=e77]: 挑一种方式，三秒钟开启你的学习
+        - generic [ref=e78]:
+          - article [ref=e79] [cursor=pointer]:
+            - generic [ref=e80]: 最常用
+            - generic [ref=e81]: 🎙️
+            - heading "课堂拾音" [level=3] [ref=e82]
+            - paragraph [ref=e83]: 上课打开它，老师讲的每一句话都会变成你的笔记。
+            - img [ref=e85]
+          - article [ref=e87] [cursor=pointer]:
+            - generic [ref=e88]: 随手记
+            - generic [ref=e89]: 💡
+            - heading "随身灵感" [level=3] [ref=e90]
+            - paragraph [ref=e91]: 想到啥都能随口说一句，小智帮你归类成今日待办。
+            - img [ref=e93]
+          - article [ref=e96] [cursor=pointer]:
+            - generic [ref=e97]: 考前必备
+            - generic [ref=e98]: 📝
+            - heading "错题同步" [level=3] [ref=e99]
+            - paragraph [ref=e100]: 课后做题秒同步，错题和解析直接进个人题库。
+            - img [ref=e102]
+        - button "一键开录 小智正在待命" [ref=e105] [cursor=pointer]:
+          - img [ref=e107]
+          - generic [ref=e111]:
+            - strong [ref=e112]: 一键开录
+            - generic [ref=e113]: 小智正在待命
+      - generic [ref=e118]:
+        - generic [ref=e120]:
+          - heading "📚 小智的学习方法笔记本" [level=3] [ref=e121]
+          - paragraph [ref=e122]: 白底资料卡保留原理和步骤，像翻同学的学习手账
+        - generic [ref=e123]:
+          - article [ref=e124]:
+            - heading "费曼学习法" [level=3] [ref=e131]
+            - generic [ref=e132]:
+              - generic [ref=e133]: 选择目标
+              - generic [ref=e135]: 教授知识
+              - generic [ref=e137]: 回顾纠错
+            - generic [ref=e138]:
+              - strong [ref=e139]: 【原理】
+              - paragraph [ref=e140]: 用自己浅显的语言，把复杂深奥的知识讲给别人听。
+            - generic [ref=e141]:
+              - strong [ref=e142]: 【步骤】
+              - list [ref=e143]:
+                - listitem [ref=e144]: 选目标：选择想要学习的概念/知识。
+                - listitem [ref=e145]: 教别人：用自己的话讲给外行人听。
+                - listitem [ref=e146]: 查漏洞：讲不清的地方回到资料补齐。
+            - text: ☞
+          - article [ref=e148]:
+            - heading "康奈尔 5R 笔记法" [level=3] [ref=e155]
+            - generic [ref=e156]:
+              - generic [ref=e157]: 笔记栏
+              - generic [ref=e158]: 线索栏
+              - strong [ref=e159]: 总结栏
+            - generic [ref=e160]:
+              - strong [ref=e161]: 【原理】
+              - paragraph [ref=e162]: 将笔记分为记录、线索和总结区，让页面结构化，兼顾课堂记录和课后复盘。
+            - generic [ref=e163]:
+              - strong [ref=e164]: 【步骤】
+              - list [ref=e165]:
+                - listitem [ref=e166]: 记录 Record：课堂内容先完整写下。
+                - listitem [ref=e167]: 简化 Reduce：用关键词压缩到线索栏。
+                - listitem [ref=e168]: 复习 Review：每周快速回看并补充总结。
+            - text: ☞
+          - article [ref=e170]:
+            - heading "艾宾浩斯学习法" [level=3] [ref=e177]
+            - generic [ref=e183]:
+              - strong [ref=e184]: 【原理】
+              - paragraph [ref=e185]: 艾宾浩斯遗忘曲线显示：遗忘进程并不均匀，“先快后慢”是规律，需要通过重复复习不断强化。
+            - generic [ref=e186]:
+              - strong [ref=e187]: 【步骤】
+              - list [ref=e188]:
+                - listitem [ref=e189]: 当天复习：先稳住短期记忆。
+                - listitem [ref=e190]: 间隔复习：1 天 / 3 天 / 7 天回看。
+                - listitem [ref=e191]: 薄弱内容增加频次，熟悉内容降低频次。
+            - text: ☞
+          - article [ref=e193]:
+            - heading "FASTER 学习法" [level=3] [ref=e200]
+            - generic [ref=e201]:
+              - generic [ref=e202]: F
+              - generic [ref=e203]: A
+              - generic [ref=e204]: S
+              - generic [ref=e205]: T
+              - generic [ref=e206]: E
+              - generic [ref=e207]: R
+            - generic [ref=e208]:
+              - strong [ref=e209]: 【原理】
+              - paragraph [ref=e210]: 在学习过程中制造更多“开始”和“结束”，会记住更多内容。
+            - generic [ref=e211]:
+              - strong [ref=e212]: 【步骤】
+              - list [ref=e213]:
+                - listitem [ref=e214]: Forget：忘记已掌握内容，保持初学者心态。
+                - listitem [ref=e215]: Act / State：标注重点，并把情绪和信息相结合。
+                - listitem [ref=e216]: Teach / Enter / Review：教给别人，再及时复习。
+            - text: ☞
+          - article [ref=e218]:
+            - heading "番茄钟学习法" [level=3] [ref=e225]
+            - generic [ref=e226]:
+              - generic [ref=e227]: 学习 25分钟
+              - generic [ref=e229]: 休息 5分钟
+              - generic [ref=e231]: 循环 4轮
+            - generic [ref=e232]:
+              - strong [ref=e233]: 【原理】
+              - paragraph [ref=e234]: 人的专注力有限，合理安排学习和休息时间，才能提高效率。
+            - generic [ref=e235]:
+              - strong [ref=e236]: 【步骤】
+              - list [ref=e237]:
+                - listitem [ref=e238]: 确定一个小目标。
+                - listitem [ref=e239]: 学习 25 分钟，只做当前任务。
+                - listitem [ref=e240]: 休息 5 分钟，4 轮后长休息。
+            - text: ☞
+          - article [ref=e242]:
+            - heading "SQ3R 学习法" [level=3] [ref=e249]
+            - generic [ref=e250]:
+              - generic [ref=e251]: S
+              - generic [ref=e252]: Q
+              - generic [ref=e253]: R
+              - generic [ref=e254]: R
+              - generic [ref=e255]: R
+            - generic [ref=e256]:
+              - strong [ref=e257]: 【原理】
+              - paragraph [ref=e258]: 从细节到整体，再从整体回到细节，建立一种高效系统的学习体系。
+            - generic [ref=e259]:
+              - strong [ref=e260]: 【步骤】
+              - list [ref=e261]:
+                - listitem [ref=e262]: Survey：先浏览目录和标题。
+                - listitem [ref=e263]: Question / Read：带着问题阅读。
+                - listitem [ref=e264]: Recite / Review：复述后及时复习。
+            - text: ☞
