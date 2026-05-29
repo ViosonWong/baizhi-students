@@ -1,0 +1,19 @@
+server {
+    listen 80;
+    server_name example.com www.example.com;
+
+    root /var/www/baizhi-students;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location = /index.html {
+        add_header Cache-Control "public, max-age=0, must-revalidate";
+    }
+
+    location ~* ^/(favicon\.svg|site\.webmanifest|robots\.txt)$ {
+        add_header Cache-Control "public, max-age=86400";
+    }
+}

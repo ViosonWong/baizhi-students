@@ -1,0 +1,12 @@
+100waytoai.com, www.100waytoai.com {
+    root * /var/www/baizhi-students
+    encode zstd gzip
+    file_server
+
+    header /index.html Cache-Control "public, max-age=0, must-revalidate"
+    header /favicon.svg Cache-Control "public, max-age=86400"
+    header /site.webmanifest Cache-Control "public, max-age=86400"
+    header /robots.txt Cache-Control "public, max-age=86400"
+
+    try_files {path} /index.html
+}
