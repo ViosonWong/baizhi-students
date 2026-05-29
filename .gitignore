@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-singlefile/
 .DS_Store
 
 .env
@@ -12,4 +13,7 @@ yarn-error.log*
 pnpm-debug.log*
 
 .vite/
+.playwright-mcp/
 coverage/
+
+*.png
