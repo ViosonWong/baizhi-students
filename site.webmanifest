@@ -1,0 +1,16 @@
+{
+  "name": "百智学生版",
+  "short_name": "百智学生版",
+  "description": "课堂录音、AI 笔记、复习题、校园知识广场与积分流程的前端交互演示。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f8ef",
+  "theme_color": "#f7f8ef",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "64x64",
+      "type": "image/svg+xml"
+    }
+  ]
+}
