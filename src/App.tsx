@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertCircle,
   ArrowRight,
   AudioLines,
+  BookOpen,
   BookOpenCheck,
   BrainCircuit,
   CalendarCheck,
@@ -17,6 +19,7 @@ import {
   Lightbulb,
   Loader2,
   LockKeyhole,
+  LogOut,
   Mic,
   Notebook,
   Pause,
@@ -33,6 +36,9 @@ import {
   Wand2,
   X,
 } from "lucide-react";
+import productRecorder from "./assets/product-recorder.png";
+import productFlash from "./assets/product-flash.png";
+import productPen from "./assets/product-pen.png";
 
 type View = "home" | "classroom" | "notes" | "market";
 type RecordState = "idle" | "recording" | "paused" | "metadata" | "generating" | "done";
@@ -306,6 +312,8 @@ function App() {
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [loginStep, setLoginStep] = useState<LoginStep>("phone");
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(readStoredLogin);
@@ -333,6 +341,7 @@ function App() {
   const [purchaseTarget, setPurchaseTarget] = useState<MarketNote | null>(null);
   const [purchaseStatus, setPurchaseStatus] = useState<"idle" | "success" | "insufficient">("idle");
   const [purchasedIds, setPurchasedIds] = useState<string[]>([]);
+  const [purchasedNotes, setPurchasedNotes] = useState<MarketNote[]>([]);
   const [publishAfterCertify, setPublishAfterCertify] = useState(false);
   const [toast, setToast] = useState("");
   const [recordSeconds, setRecordSeconds] = useState(0);
@@ -368,6 +377,17 @@ function App() {
   useEffect(() => () => {
     photosRef.current.forEach((photo) => URL.revokeObjectURL(photo.url));
   }, []);
+
+  useEffect(() => {
+    if (!showAccountMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target as Node)) {
+        setShowAccountMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showAccountMenu]);
 
   const marketNotes = [...publishedMarketNotes, ...marketplaceNotes];
   const filteredMarket = marketNotes.filter((item) => {
@@ -534,6 +554,7 @@ function App() {
     }
     setCredits((value) => value - purchaseTarget.price);
     setPurchasedIds((ids) => (ids.includes(purchaseTarget.id) ? ids : [...ids, purchaseTarget.id]));
+    setPurchasedNotes((prev) => prev.find((n) => n.id === purchaseTarget!.id) ? prev : [purchaseTarget!, ...prev]);
     setPurchaseStatus("success");
   };
 
@@ -549,7 +570,7 @@ function App() {
   };
   const pageTitle =
     view === "home"
-      ? "AI学习工作台"
+      ? "百智AI学习工作台"
       : view === "classroom"
       ? "今日课堂"
       : view === "notes"
@@ -666,36 +687,57 @@ function App() {
 
       <header className="student-topbar">
         <div className="brand-lockup">
-          <div className="brand-crumb">
-            <span className="brand-crumb-tag">
-              <i />
-              百智学生版
-            </span>
-          </div>
           <h1>{pageTitle}</h1>
         </div>
         <div className="topbar-tools">
-          <button
-            type="button"
-            className="topbar-credits"
-            onClick={openCreditsPanel}
-            aria-expanded={showCreditsPanel}
-            aria-haspopup="dialog"
-          >
-            <CircleDollarSign size={15} />
-            <span className="topbar-credits-value">{credits}</span>
-            <span className="topbar-credits-label">积分</span>
-          </button>
-          <button
-            className="topbar-account"
-            onClick={() => (requireLogin() ? setShowCertify(true) : undefined)}
-          >
-            <span className="avatar-dot">{isLoggedIn ? "我" : <LockKeyhole size={14} />}</span>
-            <span className="topbar-account-text">
-              <small>{isLoggedIn ? "已登录" : "未登录"}</small>
-              <strong>{isLoggedIn ? "138****8000" : "立即登录"}</strong>
-            </span>
-          </button>
+          {isLoggedIn && (
+            <button
+              type="button"
+              className="topbar-credits"
+              onClick={openCreditsPanel}
+              aria-expanded={showCreditsPanel}
+              aria-haspopup="dialog"
+            >
+              <CircleDollarSign size={15} />
+              <span className="topbar-credits-value">{credits}</span>
+              <span className="topbar-credits-label">积分</span>
+            </button>
+          )}
+          <div className="topbar-account-wrap" ref={accountMenuRef}>
+            <button
+              className="topbar-account"
+              onClick={() => {
+                if (isLoggedIn) {
+                  setShowAccountMenu((v) => !v);
+                } else {
+                  setShowLogin(true);
+                }
+              }}
+            >
+              <span className="avatar-dot">{isLoggedIn ? "我" : <LockKeyhole size={14} />}</span>
+              <span className="topbar-account-text">
+                {isLoggedIn ? (
+                  <strong>138****8000</strong>
+                ) : (
+                  <strong>立即登录</strong>
+                )}
+              </span>
+            </button>
+            {isLoggedIn && showAccountMenu && (
+              <div className="account-dropdown">
+                <button
+                  className="account-dropdown-item logout"
+                  onClick={() => {
+                    setIsLoggedIn(false);
+                    setShowAccountMenu(false);
+                  }}
+                >
+                  <LogOut size={14} />
+                  退出登录
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -721,7 +763,8 @@ function App() {
             noteTab={noteTab}
             recordedFiles={recordedFiles}
             setNoteTab={setNoteTab}
-            purchasedTitles={purchasedTitles}
+            purchasedNotes={purchasedNotes}
+            beginRecord={beginRecord}
             onPublish={() => {
               if (!requireLogin()) return;
               if (!student.verified) {
@@ -765,6 +808,25 @@ function NavButton({ active, icon, label, onClick }: { active: boolean; icon: Re
   );
 }
 
+function XiaozhiMiniAvatar() {
+  return (
+    <div className="xz-mini-wrap" aria-hidden="true">
+      <div className="record-mascot xz-mini-mascot">
+        <span className="rm-ear rm-ear-l" />
+        <span className="rm-ear rm-ear-r" />
+        <span className="rm-band" />
+        <span className="rm-face">
+          <span className="rm-eye rm-eye-l" />
+          <span className="rm-eye rm-eye-r" />
+          <span className="rm-mouth" />
+        </span>
+        <span className="rm-cheek rm-cheek-l" />
+        <span className="rm-cheek rm-cheek-r" />
+      </div>
+    </div>
+  );
+}
+
 function XiaozhiRecordStage({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`record-empty-stage${compact ? " is-compact" : ""}`}>
@@ -799,84 +861,89 @@ function XiaozhiRecordStage({ compact = false }: { compact?: boolean }) {
 function HomeSpotlightVisual() {
   return (
     <div className="home-spotlight-visual" aria-hidden="true">
-      {/* 后方 AI 光环 — 缓慢旋转 */}
-      <span className="hsv-orbit">
-        <span className="hsv-orbit-dot hsv-orbit-dot-1" />
-        <span className="hsv-orbit-dot hsv-orbit-dot-2" />
-        <span className="hsv-orbit-dot hsv-orbit-dot-3" />
-      </span>
+      {/* 背景柔光 + 旋转虚线环 */}
+      <span className="hsv3-glow" />
+      <span className="hsv3-ring" />
 
-      {/* 主便签 */}
-      <span className="home-note-pin" />
-      <span className="home-note-sheet">
-        {/* 录音波形：5 条小竖线轮流跳动 */}
-        <span className="home-note-icon">
-          <span className="hsv-wave" aria-hidden="true">
-            <i /><i /><i /><i /><i />
-          </span>
+      {/* 戴耳机的小智吉祥物 */}
+      <div className="record-mascot hsv3-mascot">
+        <span className="rm-ear rm-ear-l" />
+        <span className="rm-ear rm-ear-r" />
+        <span className="rm-band" />
+        <span className="rm-face">
+          <span className="rm-eye rm-eye-l" />
+          <span className="rm-eye rm-eye-r" />
+          <span className="rm-mouth" />
         </span>
-        {/* 一条正在"打字"的高亮笔记行 */}
-        <span className="home-note-line line-1" />
-        <span className="home-note-line line-2">
-          <span className="hsv-typing-cursor" aria-hidden="true" />
+        <span className="rm-cheek rm-cheek-l" />
+        <span className="rm-cheek rm-cheek-r" />
+        <span className="rm-note rm-note-1">♪</span>
+        <span className="rm-note rm-note-2">♫</span>
+      </div>
+
+      {/* 底部跳动音波小气泡 */}
+      <span className="hsv3-wave-bubble">
+        <span className="hsv3-wave-bars">
+          <i /><i /><i /><i />
         </span>
-        <span className="home-note-line line-3" />
-        <span className="home-note-line line-4" />
-        {/* 黄色 marker — drawn-in 动画 */}
-        <span className="home-note-highlight" />
       </span>
-
-      {/* 闪烁星点 */}
-      <span className="home-note-doodle doodle-left">
-        <Sparkles size={12} />
-      </span>
-      <span className="home-note-doodle doodle-right">
-        <Sparkles size={10} />
-      </span>
-
-      {/* 漂浮的小 AI 气泡 */}
-      <span className="hsv-bubble hsv-bubble-1">AI</span>
-      <span className="hsv-bubble hsv-bubble-2">✦</span>
     </div>
   );
 }
 
 function HomeDashboard({ beginRecord, setView }: { beginRecord: () => void; setView: (view: View) => void }) {
+  const [activeMethod, setActiveMethod] = useState<null | number>(null);
+
   const hardwareScenes: Array<{
     title: string;
     desc: string;
+    subtitle: string;
+    kicker: string;
+    steps: string[];
     Icon: typeof Mic;
-    tag: string;
     handler: () => void;
-    tone: string;
-    rotate: string;
+    accentColor: string;
+    bgColor: string;
+    Visual: () => React.ReactElement;
+    photoClass?: string;
   }> = [
     {
       title: "课堂拾音",
+      kicker: "只管听课，笔记全自动",
       desc: "上课打开它，老师讲的每一句话都会变成你的笔记。",
+      subtitle: "按一下录音键，老师讲的内容实时变成你的文字笔记。",
+      steps: [],
       Icon: Mic,
-      tag: "最常用",
       handler: beginRecord,
-      tone: "tone-mint",
-      rotate: "rot-l",
+      accentColor: "#a8d400",
+      bgColor: "#c8d4e2",
+      Visual: RecordDeviceIllustration,
+      photoClass: "hw-card-photo--padded",
     },
     {
       title: "随身灵感",
+      kicker: "灵感一闪，即刻留住",
       desc: "想到啥都能随口说一句，小智帮你归类成今日待办。",
+      subtitle: "随时随地，长按录入键说出脑中灵感，自动整理归档。",
+      steps: [],
       Icon: Lightbulb,
-      tag: "随手记",
       handler: () => setView("notes"),
-      tone: "tone-cream",
-      rotate: "rot-r",
+      accentColor: "#a8d400",
+      bgColor: "#f4f9f0",
+      Visual: FlashIdeaIllustration,
     },
     {
-      title: "错题同步",
-      desc: "课后做题秒同步，错题和解析直接进个人题库。",
+      title: "随写随存",
+      kicker: "纸上写一遍，云端存一遍",
+      desc: "在纸上书写，手机同步显示笔迹，碎片知识秒入题库。",
+      subtitle: "在纸上正常书写，手机实时同步笔迹，碎片知识秒入题库。",
+      steps: [],
       Icon: Notebook,
-      tag: "考前必备",
       handler: () => setView("notes"),
-      tone: "tone-sky",
-      rotate: "rot-l",
+      accentColor: "#a8d400",
+      bgColor: "#c8d4e2",
+      Visual: SyncPenIllustration,
+      photoClass: "hw-card-photo--padded",
     },
   ];
 
@@ -887,7 +954,7 @@ function HomeDashboard({ beginRecord, setView }: { beginRecord: () => void; setV
     tip: string;
     flow?: string[];
     steps: Array<{ title: string; detail: string }>;
-    visual: "teach" | "cornell" | "curve" | "faster" | "pomodoro" | "sq3r";
+    visual: "teach" | "cornell" | "curve" | "faster" | "pomodoro" | "sq3r" | "question" | "mimic";
   }> = [
     {
       title: "费曼学习法",
@@ -971,6 +1038,32 @@ function HomeDashboard({ beginRecord, setView }: { beginRecord: () => void; setV
       ],
       visual: "sq3r",
     },
+    {
+      title: "提问学习法",
+      tagline: "带着问题去读，答案记得更牢。",
+      principle: "通过自己提出问题，并找到答案的方式，深入理解知识。",
+      tip: "把问题写在便利贴上，看到就思考一遍。",
+      steps: [
+        { title: "选择目标", detail: "定一个想学的概念" },
+        { title: "向自己提问", detail: "是什么？为什么？怎么办？" },
+        { title: "寻找答案", detail: "查资料或请教他人" },
+        { title: "总结归纳", detail: "整理答案再输出" },
+      ],
+      visual: "question",
+    },
+    {
+      title: "模仿学习法",
+      tagline: "拆解高手，提炼精华变自己的。",
+      principle: "通过模仿，总结提炼他人经验的精华，形成自己的知识体系。",
+      tip: "先模仿结构，再填入自己的内容。",
+      steps: [
+        { title: "拆分知识点", detail: "划分为小块" },
+        { title: "提炼关键词", detail: "一词 / 一句话概括" },
+        { title: "分析整合", detail: "找到底层逻辑" },
+        { title: "再次加工", detail: "形成自己的框架" },
+      ],
+      visual: "mimic",
+    },
   ];
 
   return (
@@ -978,10 +1071,6 @@ function HomeDashboard({ beginRecord, setView }: { beginRecord: () => void; setV
       <section className="glass-card home-spotlight">
         <HomeSpotlightVisual />
         <div className="home-spotlight-copy">
-          <span className="home-hero-tag">
-            <i>🎒</i>
-            今天也要好好听课
-          </span>
           <h2 className="home-hero-title">
             <span className="hero-line-lead">开麦听课</span>
             <span className="hero-line-main">
@@ -1008,29 +1097,23 @@ function HomeDashboard({ beginRecord, setView }: { beginRecord: () => void; setV
         <section className="glass-card home-entry-panel">
           <div className="section-head section-head--compact">
             <div>
-              <h2>今天想怎么学？</h2>
-              <p>挑一种方式，三秒钟开启你的学习</p>
+              <h2>挑一种方式，三秒钟开启你的学习</h2>
             </div>
           </div>
           <div className="hardware-scenes">
-            {hardwareScenes.map((scene, index) => (
+            {hardwareScenes.map((scene) => (
               <article
-                className={`hw-tile ${scene.tone} ${scene.rotate}`}
+                className="hw-card"
                 key={scene.title}
-                onClick={scene.handler}
-                style={{ "--i": index } as React.CSSProperties}
               >
-                <span className="hw-tile-icon" aria-hidden="true">
-                  <scene.Icon size={22} strokeWidth={1.6} />
-                </span>
-                <div className="hw-tile-body">
-                  <span className="hw-tile-tag">{scene.tag}</span>
-                  <h3>{scene.title}</h3>
-                  <p>{scene.desc}</p>
+                <div className={`hw-card-visual${scene.photoClass ? " hw-card-visual--padded" : ""}`} style={{ background: scene.bgColor }}>
+                  <scene.Visual />
                 </div>
-                <span className="hw-tile-arrow" aria-hidden="true">
-                  <ArrowRight size={16} />
-                </span>
+                <div className="hw-card-content">
+                  <p className="hw-card-kicker">{scene.kicker}</p>
+                  <h3 className="hw-card-title">{scene.title}</h3>
+                  <p className="hw-card-sub">{scene.subtitle}</p>
+                </div>
               </article>
             ))}
           </div>
@@ -1039,16 +1122,22 @@ function HomeDashboard({ beginRecord, setView }: { beginRecord: () => void; setV
         <section className="glass-card home-methods-panel">
           <div className="section-head section-head--compact">
             <div>
-              <h2>教你变学霸</h2>
-              <p>六种学习方法，贴墙就能照着做</p>
+              <h2>选一种学法，一键进入学霸模式</h2>
             </div>
           </div>
           <div className="study-method-wall">
             {studyMethods.map((m, index) => (
-              <MethodPoster key={m.title} method={m} index={index} />
+              <MethodPoster key={m.title} method={m} index={index} onClick={() => setActiveMethod(index)} />
             ))}
           </div>
         </section>
+        {activeMethod !== null && (
+          <MethodDetailModal
+            method={studyMethods[activeMethod]}
+            index={activeMethod}
+            onClose={() => setActiveMethod(null)}
+          />
+        )}
       </div>
     </section>
   );
@@ -1056,25 +1145,33 @@ function HomeDashboard({ beginRecord, setView }: { beginRecord: () => void; setV
 
 const CIRCLED_NUMS = ["①", "②", "③", "④", "⑤", "⑥"];
 
+type StudyMethod = {
+  title: string;
+  tagline: string;
+  principle: string;
+  tip: string;
+  flow?: string[];
+  steps: Array<{ title: string; detail: string }>;
+  visual: "teach" | "cornell" | "curve" | "faster" | "pomodoro" | "sq3r" | "question" | "mimic";
+};
+
 function MethodPoster({
   method,
   index,
+  onClick,
 }: {
-  method: {
-    title: string;
-    tagline: string;
-    principle: string;
-    tip: string;
-    flow?: string[];
-    steps: Array<{ title: string; detail: string }>;
-    visual: "teach" | "cornell" | "curve" | "faster" | "pomodoro" | "sq3r";
-  };
+  method: StudyMethod;
   index: number;
+  onClick: () => void;
 }) {
   return (
     <article
       className="method-poster"
       style={{ "--i": index } as React.CSSProperties}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && onClick()}
     >
       <span className="method-corner-dots" aria-hidden="true">•••</span>
       <span className="method-poster-no" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
@@ -1087,25 +1184,76 @@ function MethodPoster({
         </p>
       </header>
       <MethodVisual visual={method.visual} flow={method.flow} />
-      <div className="method-poster-steps-wrap">
-        <span className="method-poster-steps-label">【步骤】</span>
-        <ol className="method-poster-steps">
-          {method.steps.map((step, stepIndex) => (
-            <li key={step.title}>
-              <span className="method-poster-step-no">{CIRCLED_NUMS[stepIndex] ?? stepIndex + 1}</span>
-              <span className="method-poster-step-body">
-                <strong>{step.title}</strong>
-                <small>{step.detail}</small>
-              </span>
-            </li>
-          ))}
-        </ol>
-      </div>
-      <p className="method-poster-tip">
-        <span className="method-poster-tip-label">💡贴士</span>
-        <span>{method.tip}</span>
-      </p>
     </article>
+  );
+}
+
+function MethodDetailModal({
+  method,
+  index,
+  onClose,
+}: {
+  method: StudyMethod;
+  index: number;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="method-modal-backdrop" onClick={onClose}>
+      {/* 外壳：overflow visible，让图钉/关闭按钮悬出 */}
+      <div
+        className="method-modal-outer"
+        style={{ "--i": index } as React.CSSProperties}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="method-modal-pin" aria-hidden="true" />
+
+        {/* 内部：可滚动的笔记本纸 */}
+        <div className="method-modal">
+          <span className="method-poster-no" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+
+          <header className="method-poster-head">
+            <h3>{method.title}</h3>
+            <p className="method-poster-tagline">{method.tagline}</p>
+            <p className="method-poster-principle">
+              <span className="method-poster-label">【原理】</span>
+              <span>{method.principle}</span>
+            </p>
+          </header>
+
+          <MethodVisual visual={method.visual} flow={method.flow} />
+
+          <div className="method-poster-steps-wrap">
+            <span className="method-poster-steps-label">【步骤】</span>
+            <ol className="method-poster-steps">
+              {method.steps.map((step, stepIndex) => (
+                <li key={step.title}>
+                  <span className="method-poster-step-no">{CIRCLED_NUMS[stepIndex] ?? stepIndex + 1}</span>
+                  <span className="method-poster-step-body">
+                    <strong>{step.title}</strong>
+                    <small> {step.detail}</small>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <p className="method-poster-tip">
+            <span className="method-poster-tip-label">💡贴士</span>
+            <span>{method.tip}</span>
+          </p>
+        </div>
+
+        {/* 关闭按钮在 outer 最后渲染，层级最高 */}
+        <button className="method-modal-close" onClick={onClose} aria-label="关闭">✕</button>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -1113,7 +1261,7 @@ function MethodVisual({
   visual,
   flow,
 }: {
-  visual: "teach" | "cornell" | "curve" | "faster" | "pomodoro" | "sq3r";
+  visual: "teach" | "cornell" | "curve" | "faster" | "pomodoro" | "sq3r" | "question" | "mimic";
   flow?: string[];
 }) {
   if (visual === "cornell") {
@@ -1155,6 +1303,29 @@ function MethodVisual({
       </div>
     );
   }
+  if (visual === "question") {
+    return (
+      <div className="method-visual question-vis" aria-hidden="true">
+        <span className="q-bubble">是什么？</span>
+        <span className="q-arrow">→</span>
+        <span className="q-bubble">为什么？</span>
+        <span className="q-arrow">→</span>
+        <span className="q-bubble">怎么办？</span>
+      </div>
+    );
+  }
+  if (visual === "mimic") {
+    return (
+      <div className="method-visual mimic-vis" aria-hidden="true">
+        <span>别人的</span>
+        <i />
+        <span>提炼精髓</span>
+        <span>知识体系</span>
+        <i className="back" />
+        <span>自己的</span>
+      </div>
+    );
+  }
   if (visual === "teach" && flow) {
     return (
       <div className="method-visual flow-row" aria-hidden="true">
@@ -1186,6 +1357,21 @@ function MethodVisual({
       <span>回顾纠错</span>
     </div>
   );
+}
+
+/* ── 课堂拾音 1.0：灰色卡片录音设备（真实产品图） ── */
+function RecordDeviceIllustration() {
+  return <img className="hw-card-photo" src={productRecorder} alt="课堂拾音录音设备" loading="lazy" />;
+}
+
+/* ── 随身灵感 2.0：绿色渐变卡片设备（真实产品图） ── */
+function FlashIdeaIllustration() {
+  return <img className="hw-card-photo" src={productFlash} alt="随身灵感录音设备" loading="lazy" />;
+}
+
+/* ── 随写随存 3.0：智能笔（真实产品图） ── */
+function SyncPenIllustration() {
+  return <img className="hw-card-photo" src={productPen} alt="随写随存智能笔" loading="lazy" />;
 }
 
 function ClassroomView({
@@ -1332,30 +1518,22 @@ function ClassroomView({
 function NotesLibrary({
   noteTab,
   onPublish,
-  purchasedTitles,
+  purchasedNotes,
   recordedFiles,
   setNoteTab,
+  beginRecord,
 }: {
   noteTab: NoteTab;
   onPublish: () => void;
-  purchasedTitles: string[];
+  purchasedNotes: MarketNote[];
   recordedFiles: ClassroomFile[];
   setNoteTab: (value: NoteTab) => void;
+  beginRecord: () => void;
 }) {
-  const allFiles = [
-    ...recordedFiles,
-    ...purchasedTitles.map((title) => ({
-      title,
-      type: "广场购买",
-      folder: "知识广场 / 已购入",
-      duration: "—",
-      durationText: "—",
-      status: "已入库",
-      price: 0,
-      period: "今天" as const,
-    })),
-    ...noteFiles,
-  ];
+  const [libTab, setLibTab] = useState<"classroom" | "purchased">("classroom");
+
+  // ── 课堂笔记 ──────────────────────────────────────────────────
+  const classroomFiles = [...recordedFiles, ...noteFiles];
 
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [expandedPeriods, setExpandedPeriods] = useState<Record<ClassroomFile["period"], boolean>>({
@@ -1381,14 +1559,24 @@ function NotesLibrary({
   const periodOrder: ClassroomFile["period"][] = ["今天", "本周", "更早"];
   const groupedFiles = periodOrder.map((period) => ({
     period,
-    files: allFiles
+    files: classroomFiles
       .map((file, index) => ({ file, index }))
       .filter(({ file }) => file.period === period),
   }));
 
-  const tabs: Array<[NoteTab, string]> = [
+  const contentTabs: Array<[NoteTab, string]> = [
     ["transcript", "转译文本"],
     ["summary", "智能总结"],
+    ["exercise", "测试题集"],
+    ["review", "复习建议"],
+  ];
+
+  // ── 我的笔记（已购） ─────────────────────────────────────────
+  const [selectedPurchasedIndex, setSelectedPurchasedIndex] = useState(0);
+  const selectedPurchased = purchasedNotes[selectedPurchasedIndex] ?? null;
+  const [purchasedTab, setPurchasedTab] = useState<"summary" | "exercise" | "review">("summary");
+  const purchasedTabList: Array<["summary" | "exercise" | "review", string]> = [
+    ["summary", "笔记重点"],
     ["exercise", "测试题集"],
     ["review", "复习建议"],
   ];
@@ -1396,88 +1584,176 @@ function NotesLibrary({
   return (
     <div className="notes-grid">
       <section className="glass-card file-list-card">
-        <div className="section-head">
-          <div>
-            <h2>课堂文件</h2>
-            <p>共 {allFiles.length} 条</p>
-          </div>
+        {/* 顶部 Tab 切换 */}
+        <div className="notes-lib-tabs">
+          <button
+            className={libTab === "classroom" ? "active" : ""}
+            onClick={() => setLibTab("classroom")}
+          >
+            课堂笔记
+            <span>{classroomFiles.length}</span>
+          </button>
+          <button
+            className={libTab === "purchased" ? "active" : ""}
+            onClick={() => setLibTab("purchased")}
+          >
+            我的笔记
+            {purchasedNotes.length > 0 && <span>{purchasedNotes.length}</span>}
+          </button>
         </div>
-        <div className="file-list">
-          {groupedFiles.map(({ period, files }) => (
-            <section className="file-period" key={period}>
-              <button
-                type="button"
-                className="file-period-head"
-                onClick={() => setExpandedPeriods((current) => ({ ...current, [period]: !current[period] }))}
-              >
-                <span>{period}</span>
-                <small>{files.length} 条</small>
-                <ChevronRight className={expandedPeriods[period] ? "is-open" : ""} size={15} />
-              </button>
-              {expandedPeriods[period] && (
-                <div className="file-period-items">
-                  {files.map(({ file, index }) => (
-                    <article
-                      className={index === selectedIndex ? "selected" : ""}
-                      key={`${file.title}-${index}`}
-                      onClick={() => setSelectedIndex(index)}
-                    >
-                      <div className="mini-note">
-                        <strong>{file.title}</strong>
-                        <div className="mini-note-meta">
-                          <small className={`file-status ${statusClassName(file.status)}`}>{file.status}</small>
-                          <small className="file-duration">{file.durationText}</small>
+
+        {libTab === "classroom" ? (
+          <div className="file-list">
+            {groupedFiles.map(({ period, files }) => (
+              <section className="file-period" key={period}>
+                <button
+                  type="button"
+                  className="file-period-head"
+                  onClick={() => setExpandedPeriods((current) => ({ ...current, [period]: !current[period] }))}
+                >
+                  <span>{period}</span>
+                  <small>{files.length} 条</small>
+                  <ChevronRight className={expandedPeriods[period] ? "is-open" : ""} size={15} />
+                </button>
+                {expandedPeriods[period] && (
+                  <div className="file-period-items">
+                    {files.map(({ file, index }) => (
+                      <article
+                        className={index === selectedIndex ? "selected" : ""}
+                        key={`${file.title}-${index}`}
+                        onClick={() => setSelectedIndex(index)}
+                      >
+                        <div className="mini-note">
+                          <strong>{file.title}</strong>
+                          <div className="mini-note-meta">
+                            <small className={`file-status ${statusClassName(file.status)}`}>{file.status}</small>
+                            <small className="file-duration">{file.durationText}</small>
+                          </div>
                         </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
-          ))}
-        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            ))}
+          </div>
+        ) : (
+          <div className="file-list">
+            {purchasedNotes.length === 0 ? (
+              <div className="notes-purchased-empty">
+                <BookOpen size={32} />
+                <p>还没有购买任何笔记</p>
+                <small>去知识广场发现优质课堂笔记</small>
+              </div>
+            ) : (
+              purchasedNotes.map((note, index) => (
+                <article
+                  className={`purchased-note-item ${index === selectedPurchasedIndex ? "selected" : ""}`}
+                  key={note.id}
+                  onClick={() => setSelectedPurchasedIndex(index)}
+                >
+                  <div className="mini-note">
+                    <strong>{note.title}</strong>
+                    <div className="mini-note-meta">
+                      <small className="purchased-note-author">{note.author} · {note.school}</small>
+                    </div>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        )}
       </section>
 
-      <section className="glass-card note-detail-card">
-        <div className="note-detail-head">
-          <div>
-            <h2>多元函数极值</h2>
-            <p>高数第 8 讲 · 34 分 24 秒</p>
-          </div>
-          <button className="primary-action" onClick={onPublish}>
-            <Store size={16} />
-            发布到知识广场
-          </button>
-        </div>
-        <div className="audio-player">
-          <button>
-            <Pause size={16} />
-          </button>
-          <span>0:30</span>
-          <div>
-            <i />
-          </div>
-          <span>34:24</span>
-          <button>1x</button>
-        </div>
-        <div className="note-tabs">
-          {tabs.map(([key, label]) => (
-            <button className={noteTab === key ? "active" : ""} key={key} onClick={() => setNoteTab(key)}>
-              {label}
+      {libTab === "classroom" ? (
+        <section className="glass-card note-detail-card">
+          <div className="note-detail-head">
+            <div>
+              <h2>多元函数极值</h2>
+              <p>高数第 8 讲 · 34 分 24 秒</p>
+            </div>
+            <button className="primary-action" onClick={onPublish}>
+              <Store size={16} />
+              发布到知识广场
             </button>
-          ))}
-        </div>
-        <div className="note-content-scroll">
-          <NoteContent
-            tab={noteTab}
-            summaryReady={summaryReady}
-            exerciseReady={exerciseReady}
-            reviewReady={reviewReady}
-            generating={generating}
-            onGenerate={triggerGenerate}
-          />
-        </div>
-      </section>
+          </div>
+          <div className="audio-player">
+            <button>
+              <Pause size={16} />
+            </button>
+            <span>0:30</span>
+            <div>
+              <i />
+            </div>
+            <span>34:24</span>
+            <button>1x</button>
+          </div>
+          <div className="note-tabs">
+            {contentTabs.map(([key, label]) => (
+              <button className={noteTab === key ? "active" : ""} key={key} onClick={() => setNoteTab(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="note-content-scroll">
+            <NoteContent
+              tab={noteTab}
+              summaryReady={summaryReady}
+              exerciseReady={exerciseReady}
+              reviewReady={reviewReady}
+              generating={generating}
+              onGenerate={triggerGenerate}
+              onDoExercise={beginRecord}
+            />
+          </div>
+        </section>
+      ) : (
+        <section className="glass-card note-detail-card">
+          {selectedPurchased ? (
+            <>
+              <div className="note-detail-head">
+                <div>
+                  <h2>{selectedPurchased.title}</h2>
+                  <p>{selectedPurchased.author} · {selectedPurchased.school} · {selectedPurchased.major}</p>
+                </div>
+              </div>
+              <div className="note-tabs">
+                {purchasedTabList.map(([key, label]) => (
+                  <button
+                    key={key}
+                    className={purchasedTab === key ? "active" : ""}
+                    onClick={() => setPurchasedTab(key)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="note-content-scroll">
+                {purchasedTab === "summary" && (
+                  <div className="purchased-note-intro">
+                    <p className="purchased-excerpt">{selectedPurchased.excerpt}</p>
+                  </div>
+                )}
+                <NoteContent
+                  tab={purchasedTab}
+                  summaryReady={true}
+                  exerciseReady={true}
+                  reviewReady={true}
+                  generating={null}
+                  onGenerate={() => {}}
+                  hideRegenerate={true}
+                  onDoExercise={beginRecord}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="notes-purchased-empty" style={{ margin: "auto" }}>
+              <BookOpen size={32} />
+              <p>选择左侧笔记查看内容</p>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -1489,6 +1765,8 @@ function NoteContent({
   reviewReady,
   generating,
   onGenerate,
+  hideRegenerate = false,
+  onDoExercise,
 }: {
   tab: NoteTab;
   summaryReady: boolean;
@@ -1496,7 +1774,10 @@ function NoteContent({
   reviewReady: boolean;
   generating: null | "summary" | "exercise" | "review";
   onGenerate: (kind: "summary" | "exercise" | "review") => void;
+  hideRegenerate?: boolean;
+  onDoExercise?: () => void;
 }) {
+  const [showSheet, setShowSheet] = useState(false);
   if (tab === "transcript") {
     return (
       <div className="speaker-list">
@@ -1525,12 +1806,14 @@ function NoteContent({
     }
     return (
       <div className="generated-wrap">
-        <div className="regenerate-bar">
-          <span>已由小智整理 · 刚刚</span>
-          <button type="button" onClick={() => onGenerate("summary")}>
-            <RefreshCw size={13} /> 重新生成
-          </button>
-        </div>
+        {!hideRegenerate && (
+          <div className="regenerate-bar">
+            <span>已由小智整理 · 刚刚</span>
+            <button type="button" onClick={() => onGenerate("summary")}>
+              <RefreshCw size={13} /> 重新生成
+            </button>
+          </div>
+        )}
         <SummaryNote />
       </div>
     );
@@ -1551,13 +1834,29 @@ function NoteContent({
     }
     return (
       <div className="generated-wrap">
-        <div className="regenerate-bar">
-          <span>共 6 道题 · 难度自适应</span>
-          <button type="button" onClick={() => onGenerate("exercise")}>
-            <RefreshCw size={13} /> 换一批
-          </button>
-        </div>
+        {!hideRegenerate && (
+          <div className="regenerate-bar">
+            <span>共 6 道题 · 难度自适应</span>
+            <button type="button" onClick={() => onGenerate("exercise")}>
+              <RefreshCw size={13} /> 换一批
+            </button>
+          </div>
+        )}
         <ExerciseBoard />
+        <div className="do-exercise-cta">
+          <button type="button" className="do-exercise-btn" onClick={() => setShowSheet(true)}>
+            <Notebook size={17} />
+            立即做题
+            <span className="do-exercise-badge">随写随存 3.0</span>
+          </button>
+          <p className="do-exercise-hint">连接 3.0 智能笔，书写过程实时同步入库</p>
+        </div>
+        {showSheet && (
+          <ExerciseAnswerSheet
+            onClose={() => setShowSheet(false)}
+            onConnect={onDoExercise}
+          />
+        )}
       </div>
     );
   }
@@ -1577,12 +1876,14 @@ function NoteContent({
   }
   return (
     <div className="generated-wrap">
-      <div className="regenerate-bar">
-        <span>3 天循序复习计划 · 个性化</span>
-        <button type="button" onClick={() => onGenerate("review")}>
-          <RefreshCw size={13} /> 重新生成
-        </button>
-      </div>
+      {!hideRegenerate && (
+        <div className="regenerate-bar">
+          <span>3 天循序复习计划 · 个性化</span>
+          <button type="button" onClick={() => onGenerate("review")}>
+            <RefreshCw size={13} /> 重新生成
+          </button>
+        </div>
+      )}
       <ReviewBoard />
     </div>
   );
@@ -1668,6 +1969,88 @@ function ExerciseBoard() {
         </article>
       ))}
     </div>
+  );
+}
+
+const EXERCISE_QUESTIONS = [
+  { level: "基础", tone: "low",  no: 1, q: "对于函数 f(x,y)=x²+xy+y²−3x，求所有驻点。",                                           hint: "先求一阶偏导，令其同时为 0。" },
+  { level: "基础", tone: "low",  no: 2, q: "设 f(x,y)=2x²−xy+y²+3，求函数在点 (1,1) 处的偏导数 f_x 和 f_y。",                   hint: "对 x 偏导时将 y 视为常数，反之亦然。" },
+  { level: "中等", tone: "mid",  no: 3, q: "用 Hessian 判别法判断 f(x,y)=x³−3xy²+y² 在驻点 (0,0) 是否取得极值。",              hint: "注意当判别式 Δ=0 时，Hessian 法失效，需进一步分析。" },
+  { level: "中等", tone: "mid",  no: 4, q: "求函数 f(x,y)=x²+y²−2x−4y+8 的极值，并说明其类型（极大还是极小）。",              hint: "令偏导数为 0，解方程组，再用 Hessian 判断极值类型。" },
+  { level: "拔高", tone: "high", no: 5, q: "在约束 x²+y²=1 下，求 f(x,y)=xy 的最大值与最小值，写出完整求解步骤。",            hint: "可使用拉格朗日乘子法，或将约束代入后转化为单变量问题。" },
+];
+
+function ExerciseAnswerSheet({ onClose, onConnect }: { onClose: () => void; onConnect?: () => void }) {
+  const [localToast, setLocalToast] = useState(false);
+
+  const handleConnect = () => {
+    setLocalToast(true);
+    window.setTimeout(() => setLocalToast(false), 2000);
+  };
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="ea-backdrop" onClick={onClose}>
+      <div className="ea-sheet" onClick={e => e.stopPropagation()}>
+        {/* 顶栏 */}
+        <div className="ea-header">
+          <div>
+            <h2 className="ea-title">答题卷</h2>
+            <p className="ea-meta">共 {EXERCISE_QUESTIONS.length} 道题 · 多元函数极值</p>
+          </div>
+          <button type="button" className="ea-close" onClick={onClose}>✕</button>
+        </div>
+
+        {/* 题目列表 */}
+        <div className="ea-body">
+          {EXERCISE_QUESTIONS.map((q) => (
+            <div className="ea-question" key={q.no}>
+              <div className="ea-q-header">
+                <span className={`ea-q-tag tone-${q.tone}`}>{`Q${q.no} · ${q.level}`}</span>
+                <p className="ea-q-text">{q.q}</p>
+              </div>
+              <p className="ea-q-hint">💡 {q.hint}</p>
+              {/* 答题区 */}
+              <div className="ea-answer-zone">
+                <span className="ea-answer-label">作答区</span>
+                <div className="ea-answer-lines">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div className="ea-line" key={i} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 底部 CTA */}
+        <div className="ea-footer">
+          <div className="ea-footer-inner">
+            <div className="ea-footer-copy">
+              <p className="ea-footer-title">随写随存 智能笔 3.0</p>
+              <p className="ea-footer-desc">连接后，纸上书写的答案将实时同步到此界面</p>
+            </div>
+            <button
+              type="button"
+              className="ea-connect-btn"
+              onClick={handleConnect}
+            >
+              <Notebook size={16} />
+              链接智能笔，开启智能答题
+            </button>
+          </div>
+          {localToast && (
+            <div className="ea-local-toast">敬请期待 ✨</div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -1986,9 +2369,9 @@ function AgentPanel({ recordState }: { recordState: RecordState; setNoteTab: (ta
             <strong>小智</strong>
             <span>{subtitle}</span>
           </div>
-          <span className="agent-avatar" aria-hidden="true">
-            <Wand2 size={16} />
-          </span>
+          <div className="agent-avatar" aria-hidden="true">
+            <XiaozhiMiniAvatar />
+          </div>
         </div>
 
         {/* 默认初始化状态 · 开场白 + 引导 chip */}
@@ -2081,6 +2464,17 @@ function LoginModal({
 }) {
   const [tab, setTab] = useState<"phone" | "email">("phone");
   const [agreed, setAgreed] = useState(true);
+  const [countdown, setCountdown] = useState(0);
+
+  useEffect(() => {
+    if (!isCodeStep) { setCountdown(60); return; }
+  }, [isCodeStep]);
+
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown]);
 
   return (
     <div className="modal-backdrop">
@@ -2147,14 +2541,27 @@ function LoginModal({
             />
           </div>
           {isCodeStep && (
-            <div className="login-field with-action">
-              <input
-                placeholder="请输入验证码"
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-              />
-              <button type="button" className="field-action">已发送</button>
-            </div>
+            <>
+              <div className="login-code-hint">
+                Mock 验证码：<strong>000000</strong>
+              </div>
+              <div className="login-field with-action">
+                <input
+                  placeholder="请输入验证码"
+                  value={code}
+                  onChange={(event) => setCode(event.target.value)}
+                  maxLength={6}
+                />
+                <button
+                  type="button"
+                  className="field-action"
+                  disabled={countdown > 0}
+                  onClick={() => setCountdown(60)}
+                >
+                  {countdown > 0 ? `${countdown}s 后重发` : "重新发送"}
+                </button>
+              </div>
+            </>
           )}
 
           <label className="login-agreement">
@@ -2373,6 +2780,13 @@ function PublishModal({
   });
   const [scope, setScope] = useState<"public" | "school">("school");
   const [allowPreview, setAllowPreview] = useState(true);
+  const assetTypeOptions = ["音频文件", "转译文本", "智能总结", "测试题集", "复习建议"] as const;
+  type AssetType = typeof assetTypeOptions[number];
+  const [assetTypes, setAssetTypes] = useState<AssetType[]>(["转译文本", "智能总结", "测试题集"]);
+
+  const toggleAssetType = (type: AssetType) => {
+    setAssetTypes((prev) => prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]);
+  };
 
   const presets = [10, 20, 30, 50];
   const metaFields: Array<[keyof LessonMeta, string]> = [
@@ -2440,6 +2854,22 @@ function PublishModal({
           </div>
         </div>
 
+        <div className="publish-section">
+          <label className="publish-section-title">发布内容</label>
+          <div className="publish-asset-grid">
+            {assetTypeOptions.map((type) => (
+              <label key={type} className={`publish-asset-item ${assetTypes.includes(type) ? "active" : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={assetTypes.includes(type)}
+                  onChange={() => toggleAssetType(type)}
+                />
+                <span>{type}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
         <label className="publish-toggle">
           <input type="checkbox" checked={allowPreview} onChange={(event) => setAllowPreview(event.target.checked)} />
           <div>
@@ -2448,7 +2878,7 @@ function PublishModal({
           </div>
         </label>
 
-        <button className="primary-action full" disabled={price < 1} onClick={() => onConfirm({ meta: draftMeta, price })}>
+        <button className="primary-action full" disabled={price < 1 || assetTypes.length === 0} onClick={() => onConfirm({ meta: draftMeta, price })}>
           确认发布
         </button>
       </section>
