@@ -40,10 +40,10 @@ Vercel、Netlify、Cloudflare Pages、GitHub Pages 都可以直接部署这个�
 将文件上传到服务器目录，例如：
 
 ```bash
-/var/www/baizhi-students
+/opt/100waytoai/baizhi-static
 ```
 
-Caddy 可参考 `deploy/Caddyfile.100waytoai.example`，默认站点目录为 `/var/www/baizhi-students`。
+Caddy 可参考 `deploy/Caddyfile.100waytoai.example`。当前线上 Docker Caddy 将 `/opt/100waytoai/baizhi-static` 挂载为 `/srv/baizhi-students`。
 
 Nginx 可参考 `deploy/nginx.conf.example`，把 `server_name` 改成你的域名，把 `root` 改成实际目录。配置后重载：
 
