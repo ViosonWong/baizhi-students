@@ -10,7 +10,8 @@ cd "$(dirname "$0")/.."
 
 rm -rf dist/static-site
 mkdir -p dist/static-site
-cp index.html baizhi-students-preview.html favicon.svg site.webmanifest robots.txt vercel.json netlify.toml _headers _redirects .htaccess dist/static-site/
+cp index.html baizhi-students-home-v3.html favicon.svg site.webmanifest robots.txt vercel.json netlify.toml _headers _redirects .htaccess dist/static-site/
+cp -R api dist/static-site/
 
 ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" "mkdir -p '$REMOTE_DIR'"
 rsync -az --delete -e "ssh -p $SERVER_PORT" dist/static-site/ "$SERVER_USER@$SERVER_HOST:$REMOTE_DIR/"

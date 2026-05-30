@@ -15,8 +15,7 @@
 - `favicon.svg`
 - `site.webmanifest`
 - `robots.txt`
-
-如果你希望保留预览副本，也可以同时上传 `baizhi-students-preview.html`。
+- `baizhi-students-home-v3.html`（最新页面副本，`index.html` 与它保持一致）
 
 ## 推荐方式：静态托管平台
 
