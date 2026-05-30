@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>小智 Agent API 测试</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f7f8fb;
+        color: #1f2430;
+      }
+
+      main {
+        width: min(960px, calc(100vw - 32px));
+        margin: 48px auto;
+      }
+
+      label {
+        display: block;
+        margin: 18px 0 8px;
+        font-weight: 700;
+      }
+
+      textarea,
+      input,
+      select {
+        box-sizing: border-box;
+        width: 100%;
+        border: 1px solid #d7dceb;
+        border-radius: 8px;
+        padding: 12px;
+        font: inherit;
+        background: #fff;
+      }
+
+      textarea {
+        min-height: 96px;
+        resize: vertical;
+      }
+
+      button {
+        margin-top: 18px;
+        border: 0;
+        border-radius: 8px;
+        padding: 12px 18px;
+        background: #4f46f7;
+        color: #fff;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      pre {
+        margin-top: 18px;
+        min-height: 160px;
+        white-space: pre-wrap;
+        border: 1px solid #d7dceb;
+        border-radius: 8px;
+        padding: 16px;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>小智 Agent API 测试</h1>
+
+      <label for="message">学生问题</label>
+      <textarea id="message">请根据选中的笔记出 3 道复习题。</textarea>
+
+      <label for="noteContext">笔记内容</label>
+      <textarea id="noteContext">课堂笔记：函数的单调性可以通过导数符号判断。若 f'(x) 在区间内大于 0，则函数在该区间单调递增；若小于 0，则单调递减。</textarea>
+
+      <label for="taskMode">任务模式</label>
+      <select id="taskMode">
+        <option value="auto">auto</option>
+        <option value="find_notes">find_notes</option>
+        <option value="summary">summary</option>
+        <option value="quiz" selected>quiz</option>
+        <option value="grade">grade</option>
+        <option value="review_plan">review_plan</option>
+      </select>
+
+      <label>
+        <input id="webSearchEnabled" type="checkbox" />
+        允许联网搜索
+      </label>
+
+      <button id="send">发送到小智</button>
+      <pre id="result">等待发送...</pre>
+    </main>
+
+    <script>
+      const result = document.querySelector("#result");
+
+      document.querySelector("#send").addEventListener("click", async () => {
+        result.textContent = "请求中...";
+
+        try {
+          const response = await fetch("/api/coze-chat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              studentId: "demo_student",
+              message: document.querySelector("#message").value,
+              selectedNoteIds: ["demo-note-1"],
+              selectedNoteTitles: ["函数单调性"],
+              noteContext: document.querySelector("#noteContext").value,
+              webSearchEnabled: document.querySelector("#webSearchEnabled").checked,
+              taskMode: document.querySelector("#taskMode").value,
+            }),
+          });
+
+          const data = await response.json();
+          result.textContent = data.answer || JSON.stringify(data, null, 2);
+        } catch (error) {
+          result.textContent = error.message;
+        }
+      });
+    </script>
+  </body>
+</html>

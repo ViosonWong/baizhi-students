@@ -1,6 +1,6 @@
 # 百智学生版静态部署说明
 
-当前版本是纯静态单页应用，不需要接入后端服务即可上线。正式入口是 `index.html`，页面交互流程和演示数据都在前端 HTML 内。
+当前基础页面仍可作为纯静态单页应用上线。若要启用真实的小智 Agent，需要额外部署 `api/coze-chat.js` 这类服务端代理，并在服务端配置扣子访问令牌。
 
 目标域名：
 
@@ -33,6 +33,8 @@ Vercel、Netlify、Cloudflare Pages、GitHub Pages 都可以直接部署这个�
 
 - `vercel.json`：Vercel 路由回退和缓存配置。
 - `netlify.toml`、`_redirects` 与 `_headers`：Netlify / Cloudflare Pages 路由回退和缓存配置。
+
+如果启用小智 Agent，优先使用 Vercel 部署，因为当前 `api/*.js` 已按 Vercel Serverless Functions 编写。Netlify、Cloudflare Pages 或传统服务器需要将同样逻辑迁移到对应函数服务或现有后端中。
 
 ## 传统服务器 / Nginx
 
@@ -68,6 +70,7 @@ HTTPS 建议使用平台自动证书，或在服务器上使用 Certbot / 宝塔
 
 ## 当前限制
 
-- 这是前端演示版，数据不会真实写入数据库。
+- 基础页面仍是前端演示版，数据不会真实写入数据库。
+- 小智 Agent API 代理已经加入，但需要部署服务端函数并配置 `COZE_API_TOKEN` 后才会真实工作。
 - 登录验证码、充值、购买、发布等都是本地演示流程。
 - 页面使用了 Google Fonts；如果目标用户网络无法访问 Google Fonts，会自动回退到系统字体。
