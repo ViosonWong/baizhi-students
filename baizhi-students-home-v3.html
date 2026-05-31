@@ -176,6 +176,8 @@ Error generating stack: `+a.message+`
 .student-app:not(.no-agent) .notes-grid{gap:14px;grid-template-columns:340px minmax(0,1fr)}
 .student-app:not(.no-agent) .main-stage{min-width:0}
 .student-app:not(.no-agent) .xiaozhi-panel{min-width:0}
+.xiaozhi-panel>section.agent-chat-card{visibility:hidden!important}
+#xz-root-overlay{visibility:visible!important}
 .topbar-brand-name,.brand-lockup h1{font-family:"Yuanti SC","Hiragino Maru Gothic ProN","PingFang SC",system-ui,sans-serif!important;font-size:17px!important;font-weight:700!important;letter-spacing:.01em!important;line-height:1.2!important;color:#66706a!important}
 .topbar-brand-mark{width:24px!important;height:24px!important;border-radius:7px!important;opacity:.78!important}
 .topbar-date{font-family:"Yuanti SC","Hiragino Maru Gothic ProN","PingFang SC",system-ui,sans-serif!important;font-size:12px!important;font-weight:600!important;letter-spacing:.01em!important;color:#a2a8a5!important}
@@ -435,8 +437,8 @@ Error generating stack: `+a.message+`
     panel.appendChild(ov);
     render();
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,300);});
-  else setTimeout(boot,300);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);
+  else boot();
 })();
 </script>
 
