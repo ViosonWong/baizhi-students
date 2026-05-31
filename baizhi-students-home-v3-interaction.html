@@ -453,6 +453,7 @@ Error generating stack: `+a.message+`
     '适合把想法存进知识库的一天',
     '适合轻轻推进一点点的一天'
   ];
+  var lastText='';
   function noteFor(date){
     var seed=date.getFullYear()*372+(date.getMonth()+1)*31+date.getDate();
     return dayNotes[seed%dayNotes.length];
@@ -461,10 +462,14 @@ Error generating stack: `+a.message+`
     var el=document.querySelector('.topbar-date');
     if(!el)return;
     var now=new Date();
-    el.innerHTML='今天 · <strong>'+weekNames[now.getDay()]+'</strong> · '+noteFor(now);
+    var html='今天 · <strong>'+weekNames[now.getDay()]+'</strong> · '+noteFor(now);
+    if(html===lastText)return;
+    lastText=html;
+    el.innerHTML=html;
   }
-  var mo=new MutationObserver(renderTodayMeta);
-  if(document.body)mo.observe(document.body,{childList:true,subtree:true});
+  var root=document.getElementById('root');
+  var mo=new MutationObserver(function(){window.requestAnimationFrame(renderTodayMeta);});
+  if(root)mo.observe(root,{childList:true,subtree:true});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',renderTodayMeta);
   else renderTodayMeta();
   window.setInterval(renderTodayMeta,60000);
