@@ -176,8 +176,8 @@ Error generating stack: `+a.message+`
 .student-app:not(.no-agent) .notes-grid{gap:14px;grid-template-columns:340px minmax(0,1fr)}
 .student-app:not(.no-agent) .main-stage{min-width:0}
 .student-app:not(.no-agent) .xiaozhi-panel{min-width:0}
-.xiaozhi-panel>section.agent-chat-card{visibility:hidden!important}
-#xz-root-overlay{visibility:visible!important}
+.xiaozhi-panel section.agent-chat-card{display:none!important}
+#xz-root-overlay{display:flex!important;visibility:visible!important}
 .topbar-brand-name,.brand-lockup h1{font-family:"Yuanti SC","Hiragino Maru Gothic ProN","PingFang SC",system-ui,sans-serif!important;font-size:17px!important;font-weight:700!important;letter-spacing:.01em!important;line-height:1.2!important;color:#66706a!important}
 .topbar-brand-mark{width:24px!important;height:24px!important;border-radius:7px!important;opacity:.78!important}
 .topbar-date{font-family:"Yuanti SC","Hiragino Maru Gothic ProN","PingFang SC",system-ui,sans-serif!important;font-size:12px!important;font-weight:600!important;letter-spacing:.01em!important;color:#a2a8a5!important}
@@ -424,10 +424,10 @@ Error generating stack: `+a.message+`
   function addFiles(files){files.forEach(function(f){if(!S.uploadFiles.find(function(x){return x.name===f.name;}))S.uploadFiles.push(f);});render();}
   function doSend(){var inp=document.getElementById('xz-input');if(!inp)return;var text=inp.value.trim();if(!text)return;inp.value='';autoResize(inp);sendMessage(text);}
 
-  /* ── Boot: inject overlay ONCE, React never touches it ── */
+  /* ── Boot: keep the overlay mounted even if React refreshes the panel ── */
   function boot(){
     var panel=document.querySelector('.xiaozhi-panel');
-    if(!panel){setTimeout(boot,150);return;}
+    if(!panel)return;
     if(document.getElementById(OVERLAY_ID))return; /* already mounted */
     panel.style.position='relative';
     loadConvs();
@@ -439,6 +439,8 @@ Error generating stack: `+a.message+`
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);
   else boot();
+  window.setInterval(boot,250);
+  new MutationObserver(boot).observe(document.getElementById('root')||document.body,{childList:true,subtree:true});
 })();
 </script>
 
