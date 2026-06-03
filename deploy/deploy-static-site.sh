@@ -17,7 +17,7 @@ cd "$(dirname "$0")/.."
 
 rm -rf dist/static-site
 mkdir -p dist/static-site
-cp index.html baizhi-students-home-v3.html favicon.svg site.webmanifest robots.txt vercel.json netlify.toml _headers _redirects .htaccess dist/static-site/
+cp index.html baizhi-students-home-v3.html baizhi-students-home-v3-interaction.html asr-recorder.js favicon.svg site.webmanifest robots.txt vercel.json netlify.toml _headers _redirects .htaccess dist/static-site/
 cp -R api dist/static-site/
 
 if [[ "$DEPLOY_METHOD" == "rsync" ]] && command -v rsync >/dev/null 2>&1; then

@@ -1,12 +1,25 @@
 100waytoai.com, www.100waytoai.com {
-    root * /var/www/baizhi-students
     encode zstd gzip
-    file_server
+
+    @realtime_asr path /api/asr/realtime
+    handle @realtime_asr {
+        reverse_proxy 127.0.0.1:8787
+    }
+
+    @asr path /api/asr /api/asr/
+    handle @asr {
+        rewrite * /asr
+        reverse_proxy 127.0.0.1:8000
+    }
+
+    handle {
+        root * /var/www/baizhi-students
+        try_files {path} /index.html
+        file_server
+    }
 
     header /index.html Cache-Control "public, max-age=0, must-revalidate"
     header /favicon.svg Cache-Control "public, max-age=86400"
     header /site.webmanifest Cache-Control "public, max-age=86400"
     header /robots.txt Cache-Control "public, max-age=86400"
-
-    try_files {path} /index.html
 }

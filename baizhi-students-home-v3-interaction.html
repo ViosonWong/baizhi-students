@@ -233,7 +233,7 @@ Error generating stack: `+a.message+`
   
 <script>
 (function initXiaoZhi() {
-  var API_URL  = '/api/chat/stream';
+  var API_URL  = '/api/coze-chat';
   var CONV_KEY = 'xz_conversations';
   var MAX_HIST = 30;
   var OVERLAY_ID = 'xz-root-overlay';
@@ -262,6 +262,28 @@ Error generating stack: `+a.message+`
     {id:'n4',title:'宏观经济学期中复习单',type:'mine',date:'3天前'},
     {id:'n5',title:'英语四级写作模板整理',type:'mine',date:'上周'},
   ];
+  try{
+    var asrNotes=JSON.parse(localStorage.getItem('baizhi_asr_notes')||'[]');
+    if(Array.isArray(asrNotes)){
+      NOTES=asrNotes.concat(NOTES.filter(function(n){return !asrNotes.some(function(a){return a.id===n.id;});}));
+    }
+  }catch(e){}
+  window.BaizhiXiaoZhi={
+    addAsrNote:function(note){
+      if(!note||!note.id)return;
+      NOTES=NOTES.filter(function(n){return n.id!==note.id;});
+      NOTES.unshift({
+        id:note.id,title:note.title||'课堂录音转写',type:'classroom',date:'刚刚',
+        transcript:note.transcript||note.content||'',content:note.content||note.transcript||'',segments:note.segments||[]
+      });
+      if(S.selectedNotes.indexOf(note.id)<0)S.selectedNotes.unshift(note.id);
+      S.noteTab='classroom';
+      if(document.getElementById(OVERLAY_ID))render();
+    }
+  };
+  window.addEventListener('baizhi:asr-note',function(e){
+    if(window.BaizhiXiaoZhi&&e.detail)window.BaizhiXiaoZhi.addAsrNote(e.detail);
+  });
 
   var MOCK={
     '帮我找一下相关笔记':'根据你当前的课堂笔记，我找到以下相关内容：\n\n**《高数第8讲：多元函数极值》**\n- 极值的必要条件：$f_x=0, f_y=0$\n- Hessian 矩阵判别法：$\\Delta=AC-B^2$\n- $\\Delta>0, A<0$ → 极大值；$\\Delta>0, A>0$ → 极小值 [1]\n\n**《线性代数期末复习总结》**\n- 特征值与特征向量的关系\n- 矩阵相似对角化 [2]',
@@ -316,10 +338,13 @@ Error generating stack: `+a.message+`
     render();scrollBot();
     S.abortCtrl=new AbortController();
     try{
-      var resp=await fetch(API_URL,{method:'POST',signal:S.abortCtrl.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:S.messages.slice(0,-1).map(function(m){return{role:m.role,content:m.content};}),context_notes:S.selectedNotes,web_search:S.webSearch,stream:true})});
+      var selectedNoteTitles=[],noteContext=S.selectedNotes.map(function(id){var n=NOTES.find(function(x){return x.id===id;});if(!n)return'';selectedNoteTitles.push(n.title);return '【'+n.title+'】\n'+(n.content||n.transcript||'');}).filter(Boolean).join('\n\n');
+      var resp=await fetch(API_URL,{method:'POST',signal:S.abortCtrl.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({studentId:'baizhi_student_web',conversationId:S.cozeConversationId||'',message:text,selectedNoteIds:S.selectedNotes,selectedNoteTitles:selectedNoteTitles,noteContext:noteContext,webSearchEnabled:S.webSearch,taskMode:S.selectedNotes.length?'note_context':'auto'})});
       if(!resp.ok)throw new Error('HTTP '+resp.status);
-      var reader=resp.body.getReader(),decoder=new TextDecoder(),buf='';
-      while(true){var chunk=await reader.read();if(chunk.done)break;buf+=decoder.decode(chunk.value,{stream:true});var lines=buf.split('\n');buf=lines.pop()||'';for(var i=0;i<lines.length;i++){var line=lines[i];if(!line.startsWith('data: '))continue;var raw=line.slice(6).trim();if(raw==='[DONE]')break;try{var p=JSON.parse(raw);var delta=(p.choices&&p.choices[0]&&p.choices[0].delta&&p.choices[0].delta.content)||p.content||p.delta||'';if(delta){aiMsg.content+=delta;patchMsg(aiMsg);}if(p.citations)aiMsg.citations=p.citations;}catch(e){if(raw&&raw!=='[DONE]'){aiMsg.content+=raw;patchMsg(aiMsg);}}}}
+      var data=await resp.json();
+      S.cozeConversationId=data.conversationId||S.cozeConversationId||'';
+      aiMsg.content=data.answer||data.text||data.content||'小智暂时没有返回内容。';
+      patchMsg(aiMsg);
     }catch(err){if(err.name!=='AbortError'){aiMsg.content=aiMsg.content||('抱歉，请求失败：'+err.message);aiMsg.error=true;}}
     finally{aiMsg.streaming=false;S.streaming=false;saveCurrentConv();render();scrollBot();}
   }
@@ -470,6 +495,7 @@ Error generating stack: `+a.message+`
   window.setInterval(renderTodayMeta,60000);
 })();
 </script>
+<script src="/asr-recorder.js"></script>
 
 
 </body>
