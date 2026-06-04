@@ -3,6 +3,9 @@ const fs = require("fs");
 const http = require("http");
 const path = require("path");
 const WebSocket = require("ws");
+const { handleClassAudioRecordsRequest } = require("./class-audio-store");
+const { handleClassAudioTaskRequest } = require("./class-audio-tasks");
+const { runLearningChat, runLearningWorkflow } = require("./coze-agent");
 
 const PORT = Number(process.env.PORT || 8787);
 const APPKEY = process.env.ALIYUN_NLS_APPKEY || "";
@@ -18,12 +21,34 @@ const MAX_BUFFERED_FRAMES = Number(process.env.ASR_REALTIME_MAX_BUFFERED_FRAMES 
 let cachedToken = null;
 
 const server = http.createServer((req, res) => {
-  if (req.url === "/health") {
+  const pathname = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`).pathname;
+
+  if (pathname === "/health") {
     sendJson(res, 200, {
       ok: true,
       appkeyConfigured: Boolean(APPKEY),
       tokenConfigured: Boolean(NLS_TOKEN || (ACCESS_KEY_ID && ACCESS_KEY_SECRET)),
       nlsEndpoint: NLS_WS_ENDPOINT,
+    });
+    return;
+  }
+
+  if (pathname === "/api/class-audio-records" || pathname === "/class-audio-records") {
+    handleClassAudioRecordsRequest(req, res);
+    return;
+  }
+
+  if (pathname === "/api/class-audio-tasks" || pathname === "/class-audio-tasks") {
+    handleClassAudioTaskRequest(req, res);
+    return;
+  }
+
+  if (pathname === "/api/coze-chat" || pathname === "/coze-chat") {
+    handleCozeChatRequest(req, res).catch((error) => {
+      sendJson(res, 500, {
+        error: "Unexpected server error",
+        detail: error instanceof Error ? error.message : String(error),
+      });
     });
     return;
   }
@@ -403,6 +428,116 @@ function sendClient(session, payload) {
 function sendJson(res, status, payload) {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(payload));
+}
+
+async function handleCozeChatRequest(req, res) {
+  setCorsHeaders(res);
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  if (req.method !== "POST") {
+    sendJson(res, 405, { error: "Method not allowed" });
+    return;
+  }
+
+  if (!process.env.COZE_CODE_API_TOKEN && !process.env.COZE_API_TOKEN) {
+    sendJson(res, 500, { error: "Missing COZE_API_TOKEN or COZE_CODE_API_TOKEN" });
+    return;
+  }
+
+  const body = safeJson((await readRequestBody(req)).toString("utf8")) || {};
+  const message = normalizeText(body.message);
+
+  if (!message) {
+    sendJson(res, 400, { error: "message is required" });
+    return;
+  }
+
+  const userId = normalizeText(body.studentId) || "baizhi_student";
+  const conversationId = normalizeText(body.conversationId);
+  const taskMode = normalizeText(body.taskMode);
+
+  if (taskMode === "summary" || taskMode === "quiz" || taskMode === "review") {
+    const workflow = await runLearningWorkflow({
+      task: taskMode,
+      userId,
+      parameters: buildChatWorkflowParameters(body, message, userId),
+    });
+
+    sendJson(res, 200, {
+      answer: workflow.answer,
+      artifact: workflow.artifact,
+      conversationId: workflow.coze.conversationId || conversationId,
+      chatId: workflow.coze.executeId || workflow.coze.chatId || "",
+      usage: workflow.coze.usage,
+      coze: workflow.coze,
+    });
+    return;
+  }
+
+  const parsed = await runLearningChat({
+    message,
+    userId,
+    conversationId,
+    noteContext: normalizeText(body.noteContext),
+    selectedNoteIds: normalizeList(body.selectedNoteIds),
+    selectedNoteTitles: normalizeList(body.selectedNoteTitles),
+    taskMode: taskMode || "auto",
+    webSearchEnabled: Boolean(body.webSearchEnabled),
+  });
+
+  sendJson(res, 200, parsed);
+}
+
+function buildChatWorkflowParameters(body, message, userId) {
+  const selectedNoteIds = normalizeList(body.selectedNoteIds);
+  const selectedNoteTitles = normalizeList(body.selectedNoteTitles);
+  const noteContext = normalizeText(body.noteContext);
+  return {
+    task_mode: normalizeText(body.taskMode),
+    student_id: userId,
+    user_message: message,
+    selected_note_ids: selectedNoteIds,
+    selected_note_titles: selectedNoteTitles,
+    transcript: noteContext,
+    note_context: noteContext,
+    web_search_enabled: Boolean(body.webSearchEnabled),
+  };
+}
+
+function readRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+function normalizeText(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeList(value) {
+  return Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean) : [];
+}
+
+function safeJson(value) {
+  try {
+    return JSON.parse(String(value || ""));
+  } catch {
+    return null;
+  }
+}
+
+function setCorsHeaders(res) {
+  res.setHeader("Access-Control-Allow-Origin", process.env.ALLOWED_ORIGIN || "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 
 function hex32() {

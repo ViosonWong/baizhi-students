@@ -168,11 +168,300 @@ Error generating stack: `+a.message+`
   #xz-root-overlay .agent-welcome-bubble{padding:8px 10px;font-size:12px}
   #xz-root-overlay .aw-chip{padding:4px 8px;font-size:11px}
 }
+
+/* -- Paywall/recharge enhancement --------------------------------------- */
+.nav-foot-member svg{color:#6aa800}
+.nav-foot-member .nav-foot-badge{background:var(--accent-soft);border-color:rgba(125,152,30,.28);color:#5f8c00}
+.nav-foot-member:hover .nav-foot-badge{background:#d9ff4580;border-color:#7d981e73}
+.bz-original-pay-modal{display:none!important}
+.modal-backdrop.bz-pay-backdrop{z-index:80;background:#0f11108a;display:flex;align-items:center;justify-content:center;padding:20px}
+.bz-pay-shell{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 286px;width:min(1040px,calc(100vw - 48px));height:min(632px,calc(100vh - 40px));border-radius:24px;background:#fff;overflow:hidden;box-shadow:0 24px 70px -32px #0f1110b8;color:var(--ink);animation:bzPayIn .22s cubic-bezier(.22,.8,.28,1) both}
+.bz-member-shell{width:min(1120px,calc(100vw - 48px));height:min(668px,calc(100vh - 40px));grid-template-columns:minmax(0,1fr) 292px}
+.bz-pay-close{position:absolute;right:16px;top:16px;z-index:5;display:grid;place-items:center;width:36px;height:36px;border:0;background:#ffffffb8;color:var(--ink);cursor:pointer;border-radius:12px}
+.bz-pay-close:hover{background:#0f11100b}
+.bz-pay-main{min-width:0;padding:28px 32px 24px;background:linear-gradient(135deg,#f8ffdb 0%,#f5fbef 44%,#ffffff 100%);border-right:1px solid var(--line);overflow:hidden}
+.bz-pay-main h2{margin:0;color:var(--ink);font-size:24px;font-weight:850;letter-spacing:0;line-height:1.2}
+.bz-pay-sub{margin:8px 0 18px;color:var(--muted);font-size:14px;line-height:1.7}
+.bz-recharge-title{display:flex;align-items:center;gap:10px;margin:22px 0 18px}
+.bz-recharge-title h2{font-size:26px}
+.bz-recharge-title strong{color:#6aa800}
+.bz-limit-tag{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:var(--ink);color:var(--accent);font-size:13px;font-weight:850}
+.bz-plan-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.bz-credit-card{position:relative;display:flex;flex-direction:column;align-items:flex-start;min-height:174px;padding:38px 18px 16px;border-radius:16px;border:2px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;transition:border-color .18s ease,background .18s ease,transform .18s ease,box-shadow .18s ease}
+.bz-credit-card:hover{transform:translateY(-2px);border-color:#a8d40099;box-shadow:0 12px 28px -22px #0f1110a6}
+.bz-credit-card.is-active{border-color:#7d981e;background:#fbfff0;box-shadow:0 0 0 3px #d9ff4573}
+.bz-best-tag{position:absolute;top:-2px;left:-2px;padding:7px 12px;border-radius:14px 0 14px 0;background:#7d981e;color:#fff;font-size:12px;font-weight:850}
+.bz-card-points{display:flex;align-items:center;gap:7px;font-size:27px;font-weight:900;line-height:1;white-space:nowrap}
+.bz-card-points span{font-size:14px;font-weight:650;white-space:nowrap}
+.bz-blue-star{color:#7d981e;line-height:1}
+.bz-card-rate{margin-top:17px;color:#3d413b;font-size:15px;font-weight:650}
+.bz-card-price{display:flex;align-items:end;justify-content:space-between;width:100%;gap:8px;margin-top:auto;padding-top:12px;border-top:1px solid var(--line-soft)}
+.bz-old{text-decoration:line-through;color:var(--hint);font-size:14px;font-weight:650}
+.bz-new{font-size:22px;font-weight:900;color:var(--ink)}
+.bz-credit-card.is-active .bz-new{color:#5f8c00}
+.bz-rules{display:grid;gap:7px;margin:18px 0 0;padding:14px 16px 14px 32px;border:1px solid var(--line-soft);border-radius:14px;background:#ffffffa8;color:var(--muted);font-size:13px;line-height:1.5}
+.bz-pay-side{position:relative;display:flex;flex-direction:column;gap:16px;min-width:0;padding:60px 20px 22px;background:#fbfbf8}
+.bz-side-kicker{margin:0;color:var(--muted);font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.bz-side-price{font-size:44px;font-weight:950;letter-spacing:0;color:#050505;line-height:1}
+.bz-side-discount{display:flex;align-items:center;gap:10px;font-size:15px}
+.bz-side-discount del{color:var(--hint);font-weight:750}
+.bz-side-discount span{color:#6aa800;font-weight:850}
+.bz-pay-tabs{display:flex;width:100%;height:46px;padding:4px;border-radius:14px;background:#eceee8}
+.bz-pay-method{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:11px;background:transparent;color:#5d6060;font-size:14px;font-weight:850;cursor:pointer}
+.bz-pay-method.is-active{background:#fff;color:var(--ink);box-shadow:0 2px 8px #00000008}
+.bz-pay-icon{display:inline-grid;place-items:center;width:19px;height:19px;border-radius:50%;color:#fff;font-size:11px;font-weight:900}
+.bz-pay-icon.wechat{background:#14c414}
+.bz-pay-icon.alipay{background:#1977ff}
+.bz-buy-btn{display:inline-flex;align-items:center;justify-content:center;width:100%;min-height:46px;border:0;border-radius:14px;background:var(--ink);color:var(--accent);font-size:15px;font-weight:900;cursor:pointer;box-shadow:0 14px 26px -18px #0f1110}
+.bz-buy-btn:hover{background:#000}
+.bz-side-note{margin:0;color:var(--muted);font-size:12px;line-height:1.6}
+.bz-protocol{margin-top:auto;color:var(--hint);font-size:11.5px;line-height:1.55}
+.bz-protocol a{color:#5f8c00;text-decoration:none;font-weight:750}
+.bz-qr-panel{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:22px;background:#fbfbf8;animation:bzPayIn .18s ease both}
+.bz-qr{width:176px;height:176px;border:12px solid #fff;border-radius:18px;background-color:#fff;background-image:linear-gradient(90deg,#000 8px,transparent 8px),linear-gradient(#000 8px,transparent 8px),repeating-linear-gradient(45deg,#000 0 6px,#fff 6px 12px),repeating-linear-gradient(135deg,#000 0 4px,#fff 4px 10px);background-size:34px 34px,34px 34px,25px 25px,39px 39px;background-position:0 0,0 0,10px 13px,6px 9px;box-shadow:0 14px 34px -24px #0f1110}
+.bz-countdown{margin:0;color:#6aa800;font-size:13px;font-weight:850}
+.bz-qr-title{margin:0;font-size:16px;font-weight:900;color:var(--ink)}
+.bz-pay-back{border:0;background:transparent;color:var(--muted);font-size:12px;font-weight:750;cursor:pointer}
+.bz-success-note{margin:0;color:#6b4a00;font-size:13px;font-weight:850}
+.bz-member-main{display:grid;grid-template-rows:auto 1fr;gap:16px;padding:28px 30px 24px;background:linear-gradient(135deg,#f8ffdb 0%,#f5fbef 52%,#fff 100%);overflow:hidden}
+.bz-member-head{display:grid;grid-template-columns:minmax(0,1fr) 280px;align-items:start;gap:18px}
+.bz-member-tabs{display:flex;height:48px;padding:4px;border-radius:16px;background:#ffffff94;border:1px solid var(--line-soft)}
+.bz-member-tab{flex:1;border:0;border-radius:12px;background:transparent;color:var(--muted);font-size:15px;font-weight:850;cursor:pointer}
+.bz-member-tab.is-active{background:#fff;box-shadow:0 1px 8px #00000010;color:var(--ink)}
+.bz-billing{display:grid;grid-template-columns:1fr 1fr;height:48px;border-radius:14px;background:#f1f2ec;border:1px solid var(--line-soft);overflow:hidden}
+.bz-billing button{border:0;background:transparent;color:var(--muted);font-size:15px;font-weight:850;cursor:pointer}
+.bz-billing button.is-active{background:#fff;color:var(--ink)}
+.bz-member-board{min-height:0;display:flex;flex-direction:column;border-radius:18px;background:#fff;overflow:hidden;box-shadow:0 10px 30px -26px #0f1110}
+.bz-benefit-scroll{min-height:0;overflow:auto;padding:18px;scrollbar-width:thin;scrollbar-color:#cfd2d8 transparent}
+.bz-member-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;min-width:560px}
+.bz-member-card{position:relative;padding:26px 22px 22px;border-radius:16px;background:#fafafa;min-height:430px;border:1px solid transparent}
+.bz-member-card.is-featured{background:#fbfff1;border-color:#7d981e;box-shadow:0 0 0 3px #d9ff455c}
+.bz-save-ribbon{position:absolute;right:0;top:0;padding:8px 12px;border-radius:0 14px 0 14px;background:var(--ink);color:var(--accent);font-size:12px;font-weight:850}
+.bz-member-card h3{margin:0 0 8px;font-size:22px}
+.bz-member-card p{margin:0 0 18px;font-size:14px;color:var(--muted)}
+.bz-member-price{display:flex;align-items:flex-end;gap:6px;margin-bottom:10px}
+.bz-member-price strong{font-size:38px;line-height:1}
+.bz-member-price span{font-size:18px;font-weight:800}
+.bz-member-card del{display:block;margin-bottom:18px;color:var(--hint);font-size:13px}
+.bz-member-card h4{margin:0 0 12px;font-size:14px}
+.bz-features{display:grid;gap:10px;margin:0;padding:0;list-style:none;font-size:13.5px;line-height:1.35}
+.bz-features li{display:flex;align-items:flex-start;gap:9px}
+.bz-check{font-weight:900;color:#5f8c00}
+.bz-feature-highlight{color:#4e6a00;font-weight:850}
+.bz-member-foot{flex-shrink:0;display:flex;justify-content:center;gap:18px;padding:13px;border-top:1px solid var(--line-soft);color:var(--muted);font-size:13px;background:#fff}
+.bz-time-list{display:grid;gap:10px;max-width:560px}
+.bz-time-card{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border:1px solid var(--line);border-radius:14px;font-size:14px;background:#fff}
+.bz-time-card p{margin:4px 0 0;color:var(--muted)}
+.bz-time-card strong{font-size:22px}
+.bz-time-card span{color:#5f8c00;font-weight:900}
+@keyframes bzPayIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(max-width:980px){.bz-pay-shell,.bz-member-shell{grid-template-columns:1fr;width:min(680px,calc(100vw - 24px));height:min(840px,calc(100vh - 24px));overflow:auto}.bz-pay-main{border-right:0}.bz-pay-side{padding-top:22px}.bz-member-head{grid-template-columns:1fr}.bz-member-cards{min-width:0;grid-template-columns:1fr}.bz-member-card{min-height:auto}.bz-plan-grid{grid-template-columns:1fr}.bz-credit-card{min-height:132px;padding-top:30px}.bz-pay-close{right:12px;top:12px}}
+@media(max-width:640px){.modal-backdrop.bz-pay-backdrop{padding:8px}.bz-pay-main,.bz-member-main{padding:22px 16px}.bz-pay-shell,.bz-member-shell{border-radius:18px}.bz-card-points{font-size:24px}.bz-side-price{font-size:38px}.bz-rules{font-size:12px}.bz-member-foot{font-size:12px;gap:10px}.bz-benefit-scroll{padding:12px}}
 </style>
   </head>
   <body>
     <div id="root"></div>
   
+<script>
+(function initBaizhiPayEnhancer(){
+  var rechargeIndex=2;
+  var rechargePay='wechat';
+  var memberPay='wechat';
+  var memberTab='member';
+  var billingTab='year';
+  var rechargeCheckout=false;
+  var memberCheckout=false;
+
+  var rechargePlans=[
+    {points:'5000', rate:'1元≈85积分', old:'¥89', price:'¥59'},
+    {points:'10000', rate:'1元≈92积分', old:'¥159', price:'¥109'},
+    {points:'15000', rate:'1元≈101积分', old:'¥199', price:'¥149', tag:'最划算'}
+  ];
+
+  var baseFeatures=[
+    'AI专业总结','AI个人助理','16种语言+27种方言录音识别','16种语言+27种方言转写翻译','区分发言人','声纹识别','专业模板库','自定义模板','跨端协同','行业热词库管理','闪念笔记（硬件W2专享）','PC端AI PPT生成','PC端AI 编辑器'
+  ];
+
+  function payButton(type, active){
+    var label=type==='wechat'?'微信':'支付宝';
+    var icon=type==='wechat'?'✓':'支';
+    return '<button type="button" class="bz-pay-method '+(active===type?'is-active':'')+'" data-pay="'+type+'"><span class="bz-pay-icon '+type+'">'+icon+'</span>'+label+'</button>';
+  }
+
+  function payName(type){
+    return type==='wechat'?'微信':'支付宝';
+  }
+
+  function qrPanel(kind, pay, price){
+    return '<div class="bz-qr-panel">'+
+      '<p class="bz-qr-title">请使用'+payName(pay)+'扫码支付</p>'+
+      '<div class="bz-qr" aria-label="支付二维码"></div>'+
+      '<p class="bz-countdown">订单保留中 · 4:54</p>'+
+      '<p class="bz-success-note">'+(kind==='member'?'支付成功后，权益立即到账':'支付成功后，积分立即到账')+'</p>'+
+      '<button type="button" class="bz-pay-back" data-pay-back>返回选择支付方式</button>'+
+    '</div>';
+  }
+
+  function purchaseSide(kind, opts){
+    return '<aside class="bz-pay-side">'+
+      '<p class="bz-side-kicker">'+(kind==='member'?'会员订单':'积分订单')+'</p>'+
+      '<div class="bz-side-price">'+opts.price+'</div>'+
+      '<div class="bz-side-discount"><del>'+opts.old+'</del><span>'+opts.discount+'</span></div>'+
+      '<div class="bz-pay-tabs">'+payButton('wechat',opts.pay)+payButton('alipay',opts.pay)+'</div>'+
+      '<button type="button" class="bz-buy-btn" data-start-pay="'+kind+'">'+payName(opts.pay)+'支付 '+opts.price+'</button>'+
+      '<p class="bz-side-note">'+(kind==='member'?'购买后将自动开通会员权益，可在我的订单中查看。':'积分可用于任务消耗与 App 端录音转写时长兑换。')+'</p>'+
+      '<p class="bz-protocol">付费即表示同意 <a href="javascript:void(0)">'+opts.protocol+'</a></p>'+
+      (opts.checkout?qrPanel(kind,opts.pay,opts.price):'')+
+    '</aside>';
+  }
+
+  function closeViaOriginal(backdrop){
+    var close=backdrop&&backdrop.querySelector('.bz-original-pay-modal .modal-close');
+    if(close)close.click();
+  }
+
+  function injectMemberEntry(){
+    var credits=document.querySelector('.thin-nav-foot .nav-foot-credits');
+    if(!credits||document.querySelector('.bz-member-entry'))return;
+    var btn=document.createElement('button');
+    btn.type='button';
+    btn.className='nav-foot-btn nav-foot-member bz-member-entry';
+    btn.setAttribute('aria-haspopup','dialog');
+    btn.innerHTML='<span class="nav-foot-badge"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 8 4.5 4L12 4l4.5 8L21 8l-2 13H5L3 8Z"/><path d="M5 17h14"/></svg></span><span class="nav-foot-lab">会员</span>';
+    btn.addEventListener('click',openMemberModal);
+    credits.parentNode.insertBefore(btn,credits);
+  }
+
+  function renderRecharge(backdrop){
+    var old=backdrop.querySelector('.bz-recharge-shell');
+    if(old)old.remove();
+    var plan=rechargePlans[rechargeIndex];
+    var discount=parseInt(plan.old.replace(/[^0-9]/g,''),10)-parseInt(plan.price.replace(/[^0-9]/g,''),10);
+    var shell=document.createElement('section');
+    shell.className='bz-pay-shell bz-recharge-shell';
+    shell.setAttribute('role','dialog');
+    shell.setAttribute('aria-label','充值积分');
+    shell.innerHTML=
+      '<button type="button" class="bz-pay-close" data-recharge-close aria-label="关闭"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'+
+      '<div class="bz-pay-main">'+
+        '<h2>充值积分</h2>'+
+        '<div class="bz-recharge-title"><span class="bz-limit-tag">限时</span><h2><strong>特惠</strong>充值</h2></div>'+
+        '<div class="bz-plan-grid">'+rechargePlans.map(function(p,i){
+          return '<button type="button" class="bz-credit-card '+(i===rechargeIndex?'is-active':'')+'" data-recharge-plan="'+i+'">'+
+            (p.tag?'<span class="bz-best-tag">'+p.tag+'</span>':'')+
+            '<div class="bz-card-points"><span class="bz-blue-star">✦</span>'+p.points+'<span>积分</span></div>'+
+            '<div class="bz-card-rate">'+p.rate+'</div>'+
+            '<div class="bz-card-price"><span class="bz-old">'+p.old+'</span><strong class="bz-new">'+p.price+'</strong></div>'+
+          '</button>';
+        }).join('')+'</div>'+
+        '<ul class="bz-rules"><li>积分可在PC端执行任务消耗使用，或在App端兑换录音转写时长使用。</li><li>积分自购买之日起一年有效，请在有效期内及时使用。</li><li>积分为虚拟产品，购买后不支持退款，如需开票，可联系客服开具发票。</li></ul>'+
+      '</div>'+
+      purchaseSide('recharge',{price:plan.price,old:plan.old,discount:'已减 ¥'+discount,pay:rechargePay,checkout:rechargeCheckout,protocol:'《积分充值协议》'});
+    shell.addEventListener('click',function(e){e.stopPropagation();});
+    shell.querySelector('[data-recharge-close]').addEventListener('click',function(){closeViaOriginal(backdrop);});
+    shell.querySelectorAll('[data-recharge-plan]').forEach(function(btn){
+      btn.addEventListener('click',function(){rechargeIndex=Number(btn.dataset.rechargePlan);rechargeCheckout=false;renderRecharge(backdrop);});
+    });
+    shell.querySelectorAll('[data-pay]').forEach(function(btn){
+      btn.addEventListener('click',function(){rechargePay=btn.dataset.pay;rechargeCheckout=false;renderRecharge(backdrop);});
+    });
+    shell.querySelectorAll('[data-start-pay]').forEach(function(btn){
+      btn.addEventListener('click',function(){rechargeCheckout=true;renderRecharge(backdrop);});
+    });
+    shell.querySelectorAll('[data-pay-back]').forEach(function(btn){
+      btn.addEventListener('click',function(){rechargeCheckout=false;renderRecharge(backdrop);});
+    });
+    backdrop.appendChild(shell);
+  }
+
+  function enhanceRechargeModal(){
+    document.querySelectorAll('.modal-backdrop').forEach(function(backdrop){
+      var original=backdrop.querySelector('.compact-modal.wide');
+      var title=original&&original.querySelector('h2');
+      if(!title||title.textContent.trim()!=='积分充值')return;
+      if(backdrop.classList.contains('bz-pay-backdrop'))return;
+      backdrop.classList.add('bz-pay-backdrop');
+      original.classList.add('bz-original-pay-modal');
+      backdrop.addEventListener('click',function(e){
+        if(e.target===backdrop)closeViaOriginal(backdrop);
+      });
+      renderRecharge(backdrop);
+    });
+  }
+
+  function featureList(items, highlighted){
+    return '<ul class="bz-features">'+items.map(function(item){
+      var hi=highlighted&&highlighted.indexOf(item)>=0;
+      return '<li class="'+(hi?'bz-feature-highlight':'')+'"><span class="'+(hi?'bz-blue-star':'bz-check')+'">'+(hi?'✦':'✓')+'</span><span>'+item+'</span></li>';
+    }).join('')+'</ul>';
+  }
+
+  function memberPlanCards(){
+    var proHighlights=['无限录音转写时长','20000积分/月','50G的PC端知识库容量'];
+    var standard=['2200分钟/月录音转写时长','9000积分/月','20G的PC端知识库容量'].concat(baseFeatures);
+    var pro=proHighlights.concat(baseFeatures);
+    return '<div class="bz-member-cards">'+
+      '<article class="bz-member-card"><h3>专业版</h3><p>适合专业人士</p><div class="bz-member-price"><strong>¥50</strong><span>/ 月</span></div><del>¥0.01/年　原价¥1188</del><h4>包含功能</h4>'+featureList(standard,[])+'</article>'+
+      '<article class="bz-member-card is-featured"><span class="bz-save-ribbon">比月付节省60%</span><h3>卓越版</h3><p>适合高频深度人士</p><div class="bz-member-price"><strong>¥100</strong><span>/ 月</span></div><del>¥0.01/年　原价¥2988</del><h4>包含功能</h4>'+featureList(pro,proHighlights)+'</article>'+
+    '</div>';
+  }
+
+  function timePane(){
+    return '<div class="bz-time-list">'+
+      '<div class="bz-time-card"><div><strong>10小时</strong><p>录音转写加时包</p></div><span>¥19</span></div>'+
+      '<div class="bz-time-card"><div><strong>50小时</strong><p>适合期末集中整理</p></div><span>¥79</span></div>'+
+      '<div class="bz-time-card"><div><strong>120小时</strong><p>长期课程与会议记录</p></div><span>¥149</span></div>'+
+    '</div>';
+  }
+
+  function openMemberModal(){
+    var existing=document.querySelector('.bz-member-portal');
+    if(existing)existing.remove();
+    var portal=document.createElement('div');
+    portal.className='modal-backdrop bz-pay-backdrop bz-member-portal';
+    portal.innerHTML=
+      '<section class="bz-pay-shell bz-member-shell" role="dialog" aria-label="百智WiseNote会员">'+
+        '<button type="button" class="bz-pay-close" data-member-close aria-label="关闭"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'+
+        '<main class="bz-member-main">'+
+          '<header class="bz-member-head"><div><h2>百智WiseNote会员</h2><p class="bz-pay-sub">成为会员，专享15项+核心会员权益，覆盖录音转写、AI总结与知识库协同全流程。</p></div><div class="bz-member-tabs"><button type="button" class="bz-member-tab '+(memberTab==='member'?'is-active':'')+'" data-member-tab="member">会员</button><button type="button" class="bz-member-tab '+(memberTab==='time'?'is-active':'')+'" data-member-tab="time">加时包</button></div></header>'+
+          '<section class="bz-member-board"><div class="bz-billing"><button type="button" class="'+(billingTab==='year'?'is-active':'')+'" data-billing="year">按年</button><button type="button" class="'+(billingTab==='month'?'is-active':'')+'" data-billing="month">按月</button></div><div class="bz-benefit-scroll">'+(memberTab==='member'?memberPlanCards():timePane())+'</div><footer class="bz-member-foot"><span>权益对比</span><span>|</span><span>常见问题</span><span>|</span><span>我的订单</span></footer></section>'+
+        '</main>'+
+        purchaseSide('member',{price:'¥0.01',old:'¥2988',discount:'已优惠 ¥2987.99',pay:memberPay,checkout:memberCheckout,protocol:'《百融百智会员服务协议》'})+
+      '</section>';
+    document.body.appendChild(portal);
+    function close(){portal.remove();}
+    portal.addEventListener('click',function(e){if(e.target===portal)close();});
+    portal.querySelector('[data-member-close]').addEventListener('click',close);
+    portal.querySelectorAll('[data-member-tab]').forEach(function(btn){
+      btn.addEventListener('click',function(){memberTab=btn.dataset.memberTab;memberCheckout=false;portal.remove();openMemberModal();});
+    });
+    portal.querySelectorAll('[data-billing]').forEach(function(btn){
+      btn.addEventListener('click',function(){billingTab=btn.dataset.billing;memberCheckout=false;portal.remove();openMemberModal();});
+    });
+    portal.querySelectorAll('[data-pay]').forEach(function(btn){
+      btn.addEventListener('click',function(){memberPay=btn.dataset.pay;memberCheckout=false;portal.remove();openMemberModal();});
+    });
+    portal.querySelectorAll('[data-start-pay]').forEach(function(btn){
+      btn.addEventListener('click',function(){memberCheckout=true;portal.remove();openMemberModal();});
+    });
+    portal.querySelectorAll('[data-pay-back]').forEach(function(btn){
+      btn.addEventListener('click',function(){memberCheckout=false;portal.remove();openMemberModal();});
+    });
+  }
+
+  var observer=new MutationObserver(function(){
+    injectMemberEntry();
+    enhanceRechargeModal();
+  });
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',function(){injectMemberEntry();enhanceRechargeModal();});
+  }else{
+    injectMemberEntry();
+    enhanceRechargeModal();
+  }
+})();
+</script>
 <script>
 (function initXiaoZhi() {
   var API_URL  = '/api/coze-chat';

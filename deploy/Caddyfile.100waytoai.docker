@@ -16,6 +16,21 @@ www.100waytoai.com {
     reverse_proxy baizhi-aliyun-nls-realtime-asr:8787
   }
 
+  @class_audio_records path /api/class-audio-records
+  handle @class_audio_records {
+    reverse_proxy baizhi-aliyun-nls-realtime-asr:8787
+  }
+
+  @class_audio_tasks path /api/class-audio-tasks
+  handle @class_audio_tasks {
+    reverse_proxy baizhi-aliyun-nls-realtime-asr:8787
+  }
+
+  @coze_chat path /api/coze-chat
+  handle @coze_chat {
+    reverse_proxy baizhi-aliyun-nls-realtime-asr:8787
+  }
+
   @asr path /api/asr /api/asr/
   handle @asr {
     rewrite * /asr

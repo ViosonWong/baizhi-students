@@ -1,7 +1,12 @@
 (function initBaizhiAsrRecorder() {
-  var ASR_ENDPOINT = "/api/asr";
   var REALTIME_ASR_ENDPOINT = "/api/asr/realtime";
+  var AUDIO_RECORD_ENDPOINT = "/api/class-audio-records";
+  var AUDIO_TASK_ENDPOINT = "/api/class-audio-tasks";
   var NOTE_KEY = "baizhi_asr_notes";
+  var AUDIO_RECORD_KEY = "baizhi_class_audio_records";
+  var MOCK_USER_KEY = "baizhi_mock_user_id";
+  var AUDIO_DB_NAME = "baizhi_client_db";
+  var AUDIO_BLOB_STORE = "class_audio_blobs";
   var MAX_NOTES = 20;
   var recorder = null;
   var stream = null;
@@ -14,6 +19,7 @@
   var timer = null;
   var lastBlobUrl = "";
   var originalRecorderCardHtml = "";
+  var pendingRecording = null;
   var lessonMeta = {
     school: "",
     classroom: "",
@@ -25,14 +31,36 @@
     elapsed: 0,
     error: "",
     text: "",
+    segments: [],
     note: null,
   };
   var liveLines = [];
   var livePartial = "";
+  var speakerAliasMap = {};
+  var speakerAliasNext = 0;
+  var activeDetailTab = "transcript";
+  var reattachTimer = null;
+  var classroomHostObserver = null;
+  var audioRecordPeriodOpen = {
+    "今天": true,
+    "本周": true,
+    "更早": false,
+  };
 
   injectStyle();
   document.addEventListener("click", interceptRecordClicks, true);
+  document.addEventListener("click", renderAudioRecordsAfterAiNoteClick, true);
+  document.addEventListener("click", renderMarketAfterKnowledgeClick, true);
+  document.addEventListener("click", renderRecorderAfterClassroomClick, true);
+  document.addEventListener("click", interceptOwnPublishedUnlockClick, true);
   window.addEventListener("beforeunload", cleanupStream);
+  observeClassroomHost();
+  window.BaizhiAudioRecords = {
+    render: renderAudioRecordsPanel,
+    list: loadAudioRecords,
+    currentUserId: currentUserId,
+    runTask: runAudioTask,
+  };
 
   function interceptRecordClicks(event) {
     var recordTrigger = event.target.closest(".today-rec,.record-start-pill");
@@ -54,9 +82,61 @@
     openModal();
   }
 
+  function renderRecorderAfterClassroomClick(event) {
+    if (!hasActiveRecordingSession()) {
+      return;
+    }
+
+    var target = event.target.closest("button,a,[role='button'],.nav-item,.side-nav-item,.sidebar-item");
+    var targetText = target && target.textContent ? target.textContent.replace(/\s+/g, "") : "";
+    if (targetText.indexOf("今日课堂") < 0 && targetText.indexOf("课堂") < 0) {
+      return;
+    }
+
+    scheduleRecorderReattach();
+  }
+
+  function renderAudioRecordsAfterAiNoteClick(event) {
+    var button = event.target.closest("button");
+    if (!button || !button.textContent || button.textContent.replace(/\s+/g, "").indexOf("AI笔记") < 0) {
+      return;
+    }
+
+    window.setTimeout(function() {
+      refreshServerAudioRecords();
+      renderAudioRecordsPanel();
+    }, 260);
+  }
+
+  function renderMarketAfterKnowledgeClick(event) {
+    var button = event.target.closest("button");
+    if (!button || !button.textContent || button.textContent.replace(/\s+/g, "").indexOf("知识广场") < 0) {
+      return;
+    }
+
+    schedulePublishedMarketRender();
+  }
+
+  function interceptOwnPublishedUnlockClick(event) {
+    var button = event.target.closest("[data-bz-own-note-unlock]");
+    if (!button) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    showFloatingToast("这是你自己的笔记呦");
+  }
+
   function openModal() {
     if (!window.MediaRecorder || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       showError("当前浏览器不支持网页录音，请使用最新版 Chrome、Edge 或 Safari。");
+      return;
+    }
+
+    if (hasActiveRecordingSession()) {
+      switchToClassroomView();
+      scheduleRecorderReattach();
       return;
     }
 
@@ -65,10 +145,13 @@
       elapsed: 0,
       error: "",
       text: "",
+      segments: [],
       note: null,
     };
     liveLines = [];
     livePartial = "";
+    pendingRecording = null;
+    resetSpeakerAliases();
     startRecording();
   }
 
@@ -77,9 +160,12 @@
       state.mode = "requesting";
       state.error = "";
       state.text = "";
+      state.segments = [];
       state.note = null;
       liveLines = [];
       livePartial = "";
+      pendingRecording = null;
+      resetSpeakerAliases();
 
       stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -144,7 +230,9 @@
     };
     recorder.onstop = function() {
       if (state.mode === "batch-transcribing") {
-        transcribeRecording();
+        prepareRecordingForConfirmation();
+      } else if (state.mode === "transcribing") {
+        capturePendingRecording();
       }
     };
     recorder.start(1000);
@@ -153,7 +241,7 @@
   function stopBackupRecorder(useFallback) {
     if (!recorder || recorder.state === "inactive") {
       if (useFallback) {
-        transcribeRecording();
+        prepareRecordingForConfirmation();
       }
       return;
     }
@@ -161,7 +249,7 @@
     recorder.stop();
   }
 
-  async function transcribeRecording() {
+  function capturePendingRecording() {
     clearInterval(timer);
     timer = null;
     cleanupAudioInput();
@@ -169,8 +257,7 @@
     var blob = new Blob(chunks, { type: (chunks[0] && chunks[0].type) || "audio/webm" });
 
     if (!blob.size) {
-      showError("没有录到有效音频，请重新录制。");
-      return;
+      return null;
     }
 
     if (lastBlobUrl) {
@@ -178,45 +265,52 @@
     }
     lastBlobUrl = URL.createObjectURL(blob);
 
-    state.mode = "transcribing";
+    pendingRecording = {
+      blob: blob,
+      audioUrl: lastBlobUrl,
+      fileName: "baizhi-class-recording." + fileExt(blob.type),
+      mimeType: blob.type || "audio/webm",
+      duration: state.elapsed,
+      realtimeText: state.text,
+      realtimeSegments: state.segments || [],
+    };
+
+    return pendingRecording;
+  }
+
+  function prepareRecordingForConfirmation() {
+    var recording = capturePendingRecording();
+    if (!recording) {
+      showError("没有录到有效音频，请重新录制。");
+      return;
+    }
+
+    state.mode = "confirming";
     renderModal();
+  }
 
+  async function runFineTranscription(record) {
     try {
-      var file = new File([blob], "baizhi-class-recording." + fileExt(blob.type), { type: blob.type || "audio/webm" });
-      var form = new FormData();
-      form.append("file", file);
-      form.append("language", "zh");
-
-      if (window.BAIZHI_ASR_MODEL) {
-        form.append("model", window.BAIZHI_ASR_MODEL);
-      }
-
-      var response = await fetch(ASR_ENDPOINT, {
-        method: "POST",
-        body: form,
-      });
-      var data = await response.json().catch(function() {
-        return {};
-      });
-
-      if (!response.ok) {
-        throw new Error(data.detail || data.error || "HTTP " + response.status);
-      }
-
-      var text = String(data.text || "").trim();
+      var updated = await runAudioTask(record.id, "transcribe");
+      var text = String(updated.transcript || updated.content || "").trim();
+      var segments = normalizeSpeakerSegments(updated.segments || []);
 
       if (!text) {
         throw new Error("ASR 没有返回可用文本。");
       }
 
-      state.text = text;
-      state.note = createNote(text, data.segments || [], data.duration);
-      state.mode = "done";
+      state.note = createNote(text, segments, updated.duration, updated);
       saveNote(state.note);
       pushNoteToXiaoZhi(state.note);
-      renderModal();
+      renderAudioRecordsPanel(updated.id);
     } catch (error) {
-      showError("转写失败：" + error.message);
+      record.statusLabel = "转写失败";
+      record.processing.fineTranscription = "failed";
+      record.processing.error = error.message;
+      record.updatedAt = new Date().toISOString();
+      saveAudioRecord(record);
+      patchServerAudioRecord(record);
+      renderAudioRecordsPanel(record.id);
     }
   }
 
@@ -274,6 +368,9 @@
 
     if (data.type === "partial" || data.type === "final") {
       state.text = String(data.transcript || data.text || "").trim();
+      if (Array.isArray(data.segments)) {
+        state.segments = normalizeSpeakerSegments(data.segments);
+      }
       syncLiveLines(state.text);
       updateLiveTranscript();
       return;
@@ -296,10 +393,16 @@
     }
 
     state.text = text;
-    state.note = createNote(text, (data && data.segments) || [], (data && data.duration) || state.elapsed);
-    state.mode = "done";
-    saveNote(state.note);
-    pushNoteToXiaoZhi(state.note);
+    state.segments = normalizeSpeakerSegments((data && data.segments) || state.segments || []);
+    if (!pendingRecording) {
+      capturePendingRecording();
+    }
+    if (pendingRecording) {
+      pendingRecording.realtimeText = text;
+      pendingRecording.realtimeSegments = state.segments;
+      pendingRecording.duration = (data && data.duration) || state.elapsed;
+    }
+    state.mode = "confirming";
     renderModal();
   }
 
@@ -337,6 +440,11 @@
   }
 
   function renderModal() {
+    if (state.mode === "confirming") {
+      renderConfirmOverlay();
+      return;
+    }
+
     var host = getClassroomHost();
 
     if (!host) {
@@ -361,6 +469,21 @@
 
     existing.innerHTML = oldClassroomHtml(isRecording, isBusy);
 
+    bindModal(existing);
+  }
+
+  function renderConfirmOverlay() {
+    restoreClassroomHost(false);
+
+    var existing = document.getElementById("bz-asr-modal");
+    if (!existing) {
+      existing = document.createElement("div");
+      existing.id = "bz-asr-modal";
+      document.body.appendChild(existing);
+    }
+
+    existing.className = "modal-backdrop bz-confirm-overlay";
+    existing.innerHTML = confirmLessonHtml();
     bindModal(existing);
   }
 
@@ -442,6 +565,35 @@
       '</div>';
   }
 
+  function confirmLessonHtml() {
+    return '' +
+      '<section class="compact-modal wide bz-confirm-shell">' +
+        '<button class="modal-close bz-confirm-close" type="button" data-bz-asr-discard aria-label="关闭">×</button>' +
+        '<div class="bz-confirm-head">' +
+          '<h2>课堂信息确认</h2>' +
+          '<p>是否已录入学校、教室、老师和课程？这些信息不是必填，跳过后也会继续生成笔记。</p>' +
+        '</div>' +
+        '<div class="meta-form compact bz-confirm-form">' +
+          confirmInputHtml("course", "课程", "如：高等数学") +
+          confirmInputHtml("teacher", "老师", "如：张老师") +
+          confirmInputHtml("school", "学校", "如：北京某大学") +
+          confirmInputHtml("classroom", "教室", "如：A203") +
+        '</div>' +
+        '<div class="bz-confirm-audio">' +
+          '<span>录音时长</span><strong>' + esc(formatClock((pendingRecording && pendingRecording.duration) || state.elapsed || 0)) + '</strong>' +
+          (pendingRecording && pendingRecording.audioUrl ? '<audio controls src="' + esc(pendingRecording.audioUrl) + '"></audio>' : '') +
+        '</div>' +
+        '<div class="meta-actions bz-confirm-actions">' +
+          '<button class="secondary-action bz-confirm-secondary" type="button" data-bz-asr-confirm-skip>跳过，直接生成</button>' +
+          '<button class="primary-action bz-confirm-primary" type="button" data-bz-asr-confirm-save>保存并生成笔记</button>' +
+        '</div>' +
+      '</section>';
+  }
+
+  function confirmInputHtml(key, label, placeholder) {
+    return '<label><span>' + label + '</span><input data-bz-asr-meta="' + key + '" placeholder="' + esc(placeholder) + '" value="' + esc(lessonMeta[key] || "") + '"></label>';
+  }
+
   function metaInputHtml(key, label) {
     return '<label><span>' + label + '</span><input data-bz-asr-meta="' + key + '" placeholder="' + label + '" value="' + esc(lessonMeta[key] || "") + '"></label>';
   }
@@ -459,16 +611,17 @@
       return '<article class="transcript-line--new"><time>' + esc(formatWallTime(state.elapsed)) + '</time><strong>系统提示</strong><p>正在整理课堂原文，请稍等...</p></article>';
     }
 
-    var lines = splitTranscriptLines(state.text);
-    if (!lines.length) {
+    var entries = transcriptEntries();
+    if (!entries.length) {
       return '<article class="transcript-line--new"><time>' + esc(formatWallTime(0)) + '</time><strong>Speaker A</strong><p>正在听课，识别内容会一句一句出现在这里。</p></article>';
     }
 
-    return lines.map(function(line, index) {
-      var isCurrent = !includeAllDone && index === lines.length - 1 && !/[。！？!?；;]$/.test(line);
+    return entries.map(function(entry, index) {
+      var line = entry.text || "";
+      var isCurrent = !includeAllDone && index === entries.length - 1 && !/[。！？!?；;]$/.test(line);
       return '<article class="' + (isCurrent ? "transcript-line--new" : "") + '">' +
-        '<time>' + esc(formatWallTime(index * 8)) + '</time>' +
-        '<strong>Speaker ' + (index % 2 === 0 ? "A" : "B") + '</strong>' +
+        '<time>' + esc(formatEntryWallTime(entry, index)) + '</time>' +
+        '<strong>' + esc(speakerLabel(entry, index)) + '</strong>' +
         '<p>' + esc(line) + '</p>' +
       '</article>';
     }).join("");
@@ -515,6 +668,20 @@
       discard.addEventListener("click", discardRecording);
     }
 
+    var confirmSave = root.querySelector("[data-bz-asr-confirm-save]");
+    if (confirmSave) {
+      confirmSave.addEventListener("click", function() {
+        confirmLessonAndCreateRecord(false);
+      });
+    }
+
+    var confirmSkip = root.querySelector("[data-bz-asr-confirm-skip]");
+    if (confirmSkip) {
+      confirmSkip.addEventListener("click", function() {
+        confirmLessonAndCreateRecord(true);
+      });
+    }
+
     root.querySelectorAll("[data-bz-asr-meta]").forEach(function(input) {
       input.addEventListener("input", function() {
         lessonMeta[input.getAttribute("data-bz-asr-meta")] = input.value;
@@ -523,8 +690,9 @@
   }
 
   function closeModal() {
-    if (state.mode === "recording") {
-      stopRecording();
+    if (hasActiveRecordingSession()) {
+      restoreClassroomHost();
+      showFloatingToast("录音仍在进行，回到今日课堂可继续查看转译。");
       return;
     }
 
@@ -555,15 +723,94 @@
     }, 500);
   }
 
-  function createNote(text, segments, duration) {
+  async function confirmLessonAndCreateRecord(skipMeta) {
+    if (!pendingRecording) {
+      showError("没有找到可保存的录音，请重新录制。");
+      return;
+    }
+
+    if (skipMeta) {
+      lessonMeta = {
+        school: "",
+        classroom: "",
+        teacher: "",
+        course: "",
+      };
+    }
+
+    var record = createAudioRecord(pendingRecording);
+
+    try {
+      setConfirmBusy(true);
+      var serverRecord = await createServerAudioRecord(record, pendingRecording.blob);
+      record = normalizeServerRecord(serverRecord || record);
+      record.serverSynced = true;
+      saveAudioRecord(record);
+      saveAudioBlob(record.id, pendingRecording.blob);
+      restoreClassroomHost();
+      cleanupStream();
+      goToAiNotes(record.id);
+      simulateAudioRecordPipeline(record.id, pendingRecording.blob);
+    } catch (error) {
+      setConfirmBusy(false);
+      showInlineConfirmError("保存服务器失败：" + error.message);
+    }
+  }
+
+  function createAudioRecord(recording) {
     var now = new Date();
-    var id = "asr-" + now.getTime();
+    var id = "audio-" + now.getTime();
+    var titlePrefix = lessonMeta.course || lessonMeta.classroom || "新录音";
+    var title = titlePrefix + " " + pad(now.getFullYear()) + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate()) + " " + pad(now.getHours()) + ":" + pad(now.getMinutes());
+
+    return {
+      id: id,
+      userId: currentUserId(),
+      tableName: "class_audio_records",
+      title: title,
+      type: "classroom_audio",
+      date: "刚刚",
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+      duration: recording.duration || state.elapsed,
+      fileName: recording.fileName,
+      mimeType: recording.mimeType,
+      size: recording.blob ? recording.blob.size : 0,
+      audioStorage: {
+        database: AUDIO_DB_NAME,
+        store: AUDIO_BLOB_STORE,
+        key: id,
+      },
+      status: "file_transfer",
+      statusLabel: "文件传输",
+      stageIndex: 0,
+      stages: processingStages(),
+      transcript: recording.realtimeText || state.text || "",
+      content: recording.realtimeText || state.text || "",
+      segments: recording.realtimeSegments || state.segments || [],
+      meta: Object.assign({}, lessonMeta),
+      processing: {
+        fineTranscription: "pending",
+        diarization: "pending",
+        summary: "pending",
+        quiz: "pending",
+        review: "pending",
+      },
+      artifacts: {},
+    };
+  }
+
+  function createNote(text, segments, duration, sourceRecord) {
+    var now = new Date();
+    var id = sourceRecord ? "note-" + sourceRecord.id : "asr-" + now.getTime();
     var titlePrefix = lessonMeta.course || lessonMeta.classroom || "课堂录音";
     var title = titlePrefix + " " + pad(now.getMonth() + 1) + "-" + pad(now.getDate()) + " " + pad(now.getHours()) + ":" + pad(now.getMinutes());
 
     return {
       id: id,
-      title: title,
+      audioRecordId: sourceRecord && sourceRecord.id,
+      userId: currentUserId(),
+      title: sourceRecord ? sourceRecord.title : title,
       type: "classroom",
       date: "刚刚",
       createdAt: now.toISOString(),
@@ -571,7 +818,8 @@
       transcript: text,
       content: text,
       segments: segments,
-      meta: Object.assign({}, lessonMeta),
+      status: sourceRecord ? sourceRecord.status : "done",
+      meta: Object.assign({}, sourceRecord ? sourceRecord.meta : lessonMeta),
     };
   }
 
@@ -598,6 +846,1530 @@
     if (window.BaizhiXiaoZhi && typeof window.BaizhiXiaoZhi.addAsrNote === "function") {
       window.BaizhiXiaoZhi.addAsrNote(note);
     }
+  }
+
+  function saveAudioRecord(record) {
+    var records = loadAllAudioRecords();
+    records = records.filter(function(item) {
+      return item.id !== record.id;
+    });
+    records.unshift(record);
+    localStorage.setItem(AUDIO_RECORD_KEY, JSON.stringify(records.slice(0, 100)));
+  }
+
+  async function createServerAudioRecord(record, blob) {
+    if (!blob) {
+      throw new Error("缺少音频文件。");
+    }
+
+    var form = new FormData();
+    form.append("metadata", JSON.stringify(record));
+    form.append("audio", new File([blob], record.fileName || "class-recording.webm", {
+      type: record.mimeType || blob.type || "audio/webm",
+    }));
+
+    var response = await fetch(AUDIO_RECORD_ENDPOINT, {
+      method: "POST",
+      body: form,
+    });
+    var data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok) {
+      throw new Error(data.detail || data.error || "HTTP " + response.status);
+    }
+
+    return data.record;
+  }
+
+  function patchServerAudioRecord(record) {
+    if (!record || !record.id || !record.serverSynced) {
+      return;
+    }
+
+    fetch(AUDIO_RECORD_ENDPOINT + "?id=" + encodeURIComponent(record.id), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: record.title,
+        duration: record.duration,
+        status: record.status,
+        statusLabel: record.statusLabel,
+        stageIndex: record.stageIndex,
+        transcript: record.transcript,
+        content: record.content,
+        segments: record.segments,
+        meta: record.meta,
+        processing: record.processing,
+        artifacts: record.artifacts,
+        publish: record.publish,
+      }),
+    }).catch(function() {});
+  }
+
+  async function deleteServerAudioRecord(record) {
+    if (!record || !record.id || !record.serverSynced) {
+      return;
+    }
+
+    var response = await fetch(AUDIO_RECORD_ENDPOINT + "?id=" + encodeURIComponent(record.id), {
+      method: "DELETE",
+    });
+    var data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok && response.status !== 404) {
+      throw new Error(data.detail || data.error || "HTTP " + response.status);
+    }
+  }
+
+  async function runAudioTask(recordId, task) {
+    var record = updateAudioRecord(recordId, {
+      processing: setTaskProcessing(recordId, task, "running"),
+    });
+    if (record) {
+      renderAudioRecordsPanel(recordId);
+    }
+
+    var response = await fetch(AUDIO_TASK_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recordId: recordId,
+        task: task,
+        userId: currentUserId(),
+      }),
+    });
+    var data = await response.json().catch(function() {
+      return {};
+    });
+
+    if (!response.ok) {
+      throw new Error(data.detail || data.error || "HTTP " + response.status);
+    }
+
+    if (data.record) {
+      var normalized = normalizeServerRecord(data.record);
+      saveAudioRecord(normalized);
+      renderAudioRecordsPanel(recordId);
+      return normalized;
+    }
+
+    var latest = loadAudioRecords().find(function(item) {
+      return item.id === recordId;
+    });
+    return latest || {};
+  }
+
+  function setTaskProcessing(recordId, task, value) {
+    var current = loadAudioRecords().find(function(item) {
+      return item.id === recordId;
+    });
+    var processing = Object.assign({}, current && current.processing);
+    if (task === "transcribe") {
+      processing.fineTranscription = value;
+      processing.diarization = value;
+      return processing;
+    }
+    processing[task] = value;
+    return processing;
+  }
+
+  async function refreshServerAudioRecords() {
+    try {
+      var response = await fetch(AUDIO_RECORD_ENDPOINT + "?userId=" + encodeURIComponent(currentUserId()), {
+        method: "GET",
+      });
+      var data = await response.json().catch(function() {
+        return {};
+      });
+
+      if (!response.ok || !Array.isArray(data.records)) {
+        return;
+      }
+
+      data.records.forEach(function(record) {
+        var normalized = normalizeServerRecord(record);
+        normalized.serverSynced = true;
+        saveAudioRecord(normalized);
+      });
+      renderAudioRecordsPanel();
+    } catch {
+    }
+  }
+
+  function normalizeServerRecord(record) {
+    if (!record || typeof record !== "object") {
+      return record;
+    }
+
+    return Object.assign({}, record, {
+      serverSynced: true,
+      audioStorage: record.audioStorage || {
+        api: AUDIO_RECORD_ENDPOINT,
+        id: record.id,
+      },
+      stages: Array.isArray(record.stages) && record.stages.length ? record.stages : processingStages(),
+      meta: record.meta || {},
+      processing: record.processing || {
+        fineTranscription: "pending",
+        diarization: "pending",
+        summary: "pending",
+        quiz: "pending",
+        review: "pending",
+      },
+      artifacts: record.artifacts || {},
+      publish: record.publish || {},
+    });
+  }
+
+  function setConfirmBusy(isBusy) {
+    var modal = document.getElementById("bz-asr-modal");
+    if (!modal) {
+      return;
+    }
+
+    modal.querySelectorAll("[data-bz-asr-confirm-save],[data-bz-asr-confirm-skip]").forEach(function(button) {
+      button.disabled = isBusy;
+    });
+
+    var primary = modal.querySelector("[data-bz-asr-confirm-save]");
+    if (primary) {
+      primary.textContent = isBusy ? "正在保存..." : "保存并生成笔记";
+    }
+  }
+
+  function showInlineConfirmError(message) {
+    var modal = document.getElementById("bz-asr-modal");
+    if (!modal) {
+      showError(message);
+      return;
+    }
+
+    var old = modal.querySelector(".bz-confirm-error");
+    if (old) {
+      old.remove();
+    }
+
+    var target = modal.querySelector(".bz-confirm-actions");
+    if (!target || !target.parentNode) {
+      showError(message);
+      return;
+    }
+
+    var node = document.createElement("div");
+    node.className = "bz-confirm-error";
+    node.textContent = message;
+    target.parentNode.insertBefore(node, target);
+  }
+
+  function loadAllAudioRecords() {
+    try {
+      var value = JSON.parse(localStorage.getItem(AUDIO_RECORD_KEY) || "[]");
+      return Array.isArray(value) ? value : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function loadAudioRecords() {
+    try {
+      var value = loadAllAudioRecords();
+      var userId = currentUserId();
+      return value.filter(function(record) {
+        return !record.userId || record.userId === userId;
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  function updateAudioRecord(id, patch) {
+    var records = loadAudioRecords();
+    var record = records.find(function(item) {
+      return item.id === id;
+    });
+    if (!record) {
+      return null;
+    }
+    Object.keys(patch).forEach(function(key) {
+      record[key] = patch[key];
+    });
+    record.updatedAt = new Date().toISOString();
+    saveAudioRecord(record);
+    patchServerAudioRecord(record);
+    return record;
+  }
+
+  function removeAudioRecordLocal(id) {
+    var records = loadAllAudioRecords().filter(function(item) {
+      return item.id !== id;
+    });
+    localStorage.setItem(AUDIO_RECORD_KEY, JSON.stringify(records.slice(0, 100)));
+  }
+
+  function processingStages() {
+    return [
+      { key: "file_transfer", label: "文件传输" },
+      { key: "file_transcode", label: "文件转码" },
+      { key: "server_upload", label: "文件上传服务器" },
+      { key: "waiting_summary", label: "待AI总结" },
+    ];
+  }
+
+  function audioRecordDisplayStatus(record) {
+    var processing = (record && record.processing) || {};
+    var artifacts = (record && record.artifacts) || {};
+    if (artifacts.summary || processing.summary === "done" || record && record.status === "stored") {
+      return "已入库";
+    }
+
+    var label = record && record.statusLabel ? record.statusLabel : "待AI总结";
+    if (label === "待总结") {
+      return "待AI总结";
+    }
+    return label;
+  }
+
+  function isAudioRecordPublishReady(record) {
+    return audioRecordDisplayStatus(record) === "已入库";
+  }
+
+  function audioRecordStatusClass(record) {
+    var status = String((record && (record.status || record.statusLabel)) || "").toLowerCase();
+    if (audioRecordDisplayStatus(record) === "已入库") {
+      return "is-stored";
+    }
+    if (status.indexOf("record") >= 0 || status.indexOf("录音") >= 0) {
+      return "is-recording";
+    }
+    if (status.indexOf("transfer") >= 0 || status.indexOf("传输") >= 0) {
+      return "is-transferring";
+    }
+    if (status.indexOf("transcode") >= 0 || status.indexOf("转码") >= 0) {
+      return "is-transcoding";
+    }
+    if (status.indexOf("upload") >= 0 || status.indexOf("上传") >= 0) {
+      return "is-uploading";
+    }
+    if (status.indexOf("summary") >= 0 || status.indexOf("总结中") >= 0) {
+      return "is-summarizing";
+    }
+    return "is-pending";
+  }
+
+  function audioRecordDurationText(record) {
+    return formatClock(Math.round((record && record.duration) || 0));
+  }
+
+  function lessonMetaChipsHtml(record) {
+    var meta = (record && record.meta) || {};
+    var items = [
+      ["课程", meta.course],
+      ["老师", meta.teacher],
+      ["教室", meta.classroom],
+      ["学校", meta.school],
+    ].filter(function(item) {
+      return String(item[1] || "").trim();
+    });
+
+    if (!items.length) {
+      return "";
+    }
+
+    return '<div class="bz-lesson-meta-chips">' + items.map(function(item) {
+      return '<span><strong>' + esc(item[0]) + '</strong>' + esc(item[1]) + '</span>';
+    }).join("") + '</div>';
+  }
+
+  function audioPlayerHtml(record) {
+    var duration = Math.round((record && record.duration) || 0);
+    return '<div class="audio-player bz-audio-player">' +
+      '<button type="button" aria-label="播放录音">' + playIcon() + '</button>' +
+      '<span>0:00</span>' +
+      '<div aria-hidden="true"><i></i></div>' +
+      '<span>' + esc(formatClock(duration)) + '</span>' +
+      '<button type="button">1x</button>' +
+    '</div>';
+  }
+
+  function simulateAudioRecordPipeline(id, blob) {
+    var stages = processingStages();
+
+    stages.forEach(function(stage, index) {
+      window.setTimeout(function() {
+        var record = updateAudioRecord(id, {
+          status: stage.key,
+          statusLabel: stage.label,
+          stageIndex: index,
+        });
+        if (record) {
+          renderAudioRecordsPanel(id);
+        }
+        if (index === 2 && record && blob) {
+          runFineTranscription(record, blob);
+        }
+      }, index * 900);
+    });
+  }
+
+  function goToAiNotes(recordId) {
+    var buttons = Array.prototype.slice.call(document.querySelectorAll("button"));
+    var target = buttons.find(function(button) {
+      return button.textContent && button.textContent.replace(/\s+/g, "").indexOf("AI笔记") >= 0;
+    });
+
+    if (target) {
+      target.click();
+    }
+
+    window.setTimeout(function() {
+      refreshServerAudioRecords();
+      renderAudioRecordsPanel(recordId);
+    }, 180);
+    window.setTimeout(function() {
+      refreshServerAudioRecords();
+      renderAudioRecordsPanel(recordId);
+    }, 520);
+  }
+
+  function renderAudioRecordsPanel(activeId) {
+    var host = document.querySelector(".file-list-card");
+    if (!host) {
+      return;
+    }
+
+    var records = sortAudioRecords(loadAudioRecords());
+    var existing = prepareAudioRecordListHost(host);
+    updateAudioRecordTabCount(host, records.length);
+
+    if (!records.length) {
+      existing.innerHTML = '<div class="notes-purchased-empty bz-audio-list-empty"><p>还没有真实课堂录音</p><small>从今日课堂录音后，会按时间自动归档在这里。</small></div>';
+      renderAudioEmptyDetail();
+      return;
+    }
+
+    var selectedId = activeId || records[0].id;
+    var groups = groupAudioRecordsByPeriod(records);
+    existing.innerHTML = groups.map(function(group) {
+      return audioRecordPeriodHtml(group.period, group.records, selectedId);
+    }).join("");
+
+    document.querySelectorAll(".file-list article.selected").forEach(function(item) {
+      if (item.getAttribute("data-bz-audio-record-id") !== selectedId) {
+        item.classList.remove("selected");
+      }
+    });
+
+    existing.querySelectorAll("[data-bz-audio-period]").forEach(function(button) {
+      button.addEventListener("click", function() {
+        var period = button.getAttribute("data-bz-audio-period");
+        audioRecordPeriodOpen[period] = !audioRecordPeriodOpen[period];
+        renderAudioRecordsPanel(selectedId);
+      });
+    });
+
+    existing.querySelectorAll("[data-bz-delete-audio-record]").forEach(function(button) {
+      button.addEventListener("click", function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteAudioRecord(button.getAttribute("data-bz-delete-audio-record"));
+      });
+    });
+
+    existing.querySelectorAll("[data-bz-audio-record-id]").forEach(function(card) {
+      card.addEventListener("click", function() {
+        document.querySelectorAll(".file-list article.selected").forEach(function(item) {
+          item.classList.remove("selected");
+        });
+        card.classList.add("selected");
+        renderAudioRecordDetail(card.getAttribute("data-bz-audio-record-id"));
+      });
+    });
+
+    renderAudioRecordDetail(selectedId);
+  }
+
+  function prepareAudioRecordListHost(host) {
+    var existing = document.getElementById("bz-audio-records-panel");
+    var tabs = host.querySelector(".notes-lib-tabs");
+    var mockLists = Array.prototype.slice.call(host.querySelectorAll(".file-list")).filter(function(list) {
+      return list.id !== "bz-audio-records-panel";
+    });
+
+    if (!existing && mockLists.length) {
+      existing = mockLists[0];
+      existing.id = "bz-audio-records-panel";
+      existing.className = "file-list bz-audio-records-panel";
+    }
+
+    if (!existing) {
+      existing = document.createElement("div");
+      existing.id = "bz-audio-records-panel";
+      existing.className = "file-list bz-audio-records-panel";
+      if (tabs && tabs.nextSibling) {
+        host.insertBefore(existing, tabs.nextSibling);
+      } else {
+        host.insertBefore(existing, host.firstChild);
+      }
+    }
+
+    mockLists.slice(1).forEach(function(list) {
+      list.remove();
+    });
+
+    return existing;
+  }
+
+  function updateAudioRecordTabCount(host, count) {
+    var button = host.querySelector(".notes-lib-tabs button");
+    var badge = button && button.querySelector("span");
+    if (badge) {
+      badge.textContent = String(count);
+    }
+  }
+
+  function sortAudioRecords(records) {
+    return records.slice().sort(function(a, b) {
+      return recordTimeValue(b) - recordTimeValue(a);
+    });
+  }
+
+  function recordTimeValue(record) {
+    var date = record && record.createdAt ? new Date(record.createdAt) : null;
+    return date && !Number.isNaN(date.getTime()) ? date.getTime() : 0;
+  }
+
+  function groupAudioRecordsByPeriod(records) {
+    var map = {
+      "今天": [],
+      "本周": [],
+      "更早": [],
+    };
+
+    records.forEach(function(record) {
+      map[audioRecordPeriod(record)].push(record);
+    });
+
+    return ["今天", "本周", "更早"].filter(function(period) {
+      return map[period].length > 0;
+    }).map(function(period) {
+      return {
+        period: period,
+        records: map[period],
+      };
+    });
+  }
+
+  function audioRecordPeriod(record) {
+    var date = record && record.createdAt ? new Date(record.createdAt) : null;
+    if (!date || Number.isNaN(date.getTime())) {
+      return "更早";
+    }
+
+    var now = new Date();
+    var startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var startRecord = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    var diffDays = Math.floor((startToday.getTime() - startRecord.getTime()) / 86400000);
+
+    if (diffDays <= 0) {
+      return "今天";
+    }
+    if (diffDays < 7) {
+      return "本周";
+    }
+    return "更早";
+  }
+
+  function audioRecordPeriodHtml(period, records, activeId) {
+    var isOpen = audioRecordPeriodOpen[period] !== false;
+    return '<section class="file-period">' +
+      '<button class="file-period-head" type="button" data-bz-audio-period="' + esc(period) + '"><span>' + esc(period) + '</span><small>' + records.length + ' 条</small>' + chevronIcon(isOpen) + '</button>' +
+      (isOpen ? '<div class="file-period-items">' + records.map(function(record) {
+        return audioRecordCardHtml(record, record.id === activeId);
+      }).join("") + '</div>' : '') +
+    '</section>';
+  }
+
+  function audioRecordCardHtml(record, active) {
+    return '<article class="bz-audio-record-card ' + (active ? "selected" : "") + '" data-bz-audio-record-id="' + esc(record.id) + '">' +
+      '<button class="bz-audio-delete" type="button" data-bz-delete-audio-record="' + esc(record.id) + '" aria-label="删除录音" title="删除录音">' + trashIcon() + '</button>' +
+      '<div class="mini-note">' +
+        '<strong>' + esc(displayRecordTitle(record)) + '</strong>' +
+        '<div class="mini-note-meta">' +
+          '<small class="file-status ' + esc(audioRecordStatusClass(record)) + '">' + esc(audioRecordDisplayStatus(record)) + '</small>' +
+          '<small class="file-duration">' + esc(audioRecordDurationText(record)) + '</small>' +
+        '</div>' +
+      '</div>' +
+    '</article>';
+  }
+
+  function renderAudioRecordDetail(recordId) {
+    var record = loadAudioRecords().find(function(item) {
+      return item.id === recordId;
+    });
+    var detail = document.querySelector(".note-detail-card");
+    if (!record || !detail) {
+      return;
+    }
+
+    var text = record.transcript || "精细化转写与说话人分离正在准备中。";
+    var tab = activeDetailTab || "transcript";
+    detail.innerHTML =
+      '<div class="note-detail-head">' +
+        '<div class="bz-note-title-block"><h2>' + esc(displayRecordTitle(record)) + '</h2><p>' + esc((record.meta && record.meta.course) || "课堂录音") + ' · ' + esc(formatClock(Math.round(record.duration || 0))) + '</p>' + lessonMetaChipsHtml(record) + '</div>' +
+        '<button class="primary-action bz-publish-entry" type="button" data-bz-publish-record="' + esc(record.id) + '">' + marketIcon() + '<span>发布到知识广场</span></button>' +
+      '</div>' +
+      audioPlayerHtml(record) +
+      '<div class="note-tabs">' +
+        detailTabButton("transcript", "转译文本", tab) +
+        detailTabButton("summary", "智能总结", tab) +
+        detailTabButton("quiz", "测试题集", tab) +
+        detailTabButton("review", "复习建议", tab) +
+      '</div>' +
+      '<div class="note-content-scroll bz-audio-transcript">' + detailTabHtml(record, text, tab) + '</div>';
+
+    detail.querySelectorAll("[data-bz-detail-tab]").forEach(function(button) {
+      button.addEventListener("click", function() {
+        activeDetailTab = button.getAttribute("data-bz-detail-tab") || "transcript";
+        renderAudioRecordDetail(recordId);
+      });
+    });
+
+    detail.querySelectorAll("[data-bz-generate-artifact]").forEach(function(button) {
+      button.addEventListener("click", function(event) {
+        event.stopPropagation();
+        generateArtifact(recordId, button.getAttribute("data-bz-generate-artifact"));
+      });
+    });
+
+    detail.querySelectorAll("[data-bz-do-exercise]").forEach(function(button) {
+      button.addEventListener("click", function(event) {
+        event.stopPropagation();
+        openExerciseSheet(recordId);
+      });
+    });
+
+    var publishButton = detail.querySelector("[data-bz-publish-record]");
+    if (publishButton) {
+      publishButton.addEventListener("click", function(event) {
+        event.stopPropagation();
+        openPublishModal(recordId);
+      });
+    }
+  }
+
+  async function deleteAudioRecord(recordId) {
+    var record = loadAudioRecords().find(function(item) {
+      return item.id === recordId;
+    });
+
+    if (!record) {
+      return;
+    }
+
+    var nextRecords = sortAudioRecords(loadAudioRecords()).filter(function(item) {
+      return item.id !== recordId;
+    });
+    var nextId = nextRecords.length ? nextRecords[0].id : "";
+
+    removeAudioRecordLocal(recordId);
+    deleteAudioBlob(recordId);
+    renderAudioRecordsPanel(nextId);
+
+    try {
+      await deleteServerAudioRecord(record);
+    } catch (error) {
+      showAudioListToast("服务器删除失败：" + error.message);
+    }
+  }
+
+  function openPublishModal(recordId) {
+    var record = loadAudioRecords().find(function(item) {
+      return item.id === recordId;
+    });
+
+    if (!record) {
+      return;
+    }
+
+    if (!isAudioRecordPublishReady(record)) {
+      showFloatingToast("请先对课堂笔记完成智能总结！");
+      return;
+    }
+
+    closePublishModal();
+
+    var modal = document.createElement("div");
+    modal.className = "modal-backdrop bz-publish-backdrop";
+    modal.setAttribute("role", "presentation");
+    modal.innerHTML = publishModalHtml(record);
+    document.body.appendChild(modal);
+
+    bindPublishModal(modal, record);
+  }
+
+  function closePublishModal() {
+    var existing = document.querySelector(".bz-publish-backdrop");
+    if (existing) {
+      existing.remove();
+    }
+  }
+
+  function publishModalHtml(record) {
+    var meta = record.meta || {};
+    var values = {
+      school: meta.school || "北京某大学",
+      classroom: meta.classroom || "A203",
+      teacher: meta.teacher || "授课老师",
+      course: meta.course || displayRecordTitle(record),
+    };
+    var assets = ["音频文件", "转译文本", "智能总结", "测试题集", "复习建议"];
+    var selected = ["转译文本", "智能总结", "测试题集"];
+    var price = record.publish && record.publish.price ? Number(record.publish.price) : 30;
+
+    return '<section class="compact-modal wide bz-publish-modal" role="dialog" aria-label="发布到知识广场">' +
+      '<button class="modal-close" type="button" data-bz-publish-close aria-label="关闭">×</button>' +
+      '<h2>发布到知识广场</h2>' +
+      '<p>确认笔记信息和积分价值后，会生成一张学习卡片放入知识广场。</p>' +
+      '<div class="publish-section">' +
+        '<label class="publish-section-title">课堂属性</label>' +
+        '<div class="publish-meta-grid">' +
+          publishMetaInput("school", "学校", values.school) +
+          publishMetaInput("classroom", "教室", values.classroom) +
+          publishMetaInput("teacher", "授课老师", values.teacher) +
+          publishMetaInput("course", "课程名称", values.course) +
+        '</div>' +
+      '</div>' +
+      '<div class="publish-section">' +
+        '<label class="publish-section-title">设置积分价格</label>' +
+        '<div class="preset-grid four">' +
+          [10, 20, 30, 50].map(function(value) {
+            return '<button type="button" class="' + (price === value ? "active" : "") + '" data-bz-publish-price="' + value + '"><strong>' + value + '</strong><span>积分</span></button>';
+          }).join("") +
+        '</div>' +
+        '<input type="number" min="1" max="999" value="' + esc(price) + '" placeholder="自定义价格" data-bz-publish-price-input>' +
+      '</div>' +
+      '<div class="publish-section">' +
+        '<label class="publish-section-title">可见范围</label>' +
+        '<div class="segmented">' +
+          '<button type="button" class="active" data-bz-publish-scope="school">本校同学</button>' +
+          '<button type="button" data-bz-publish-scope="public">全平台公开</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="publish-section">' +
+        '<label class="publish-section-title">发布内容</label>' +
+        '<div class="publish-asset-grid">' +
+          assets.map(function(asset) {
+            var isActive = selected.indexOf(asset) >= 0;
+            return '<label class="publish-asset-item ' + (isActive ? "active" : "") + '">' +
+              '<input type="checkbox" value="' + esc(asset) + '" ' + (isActive ? "checked" : "") + ' data-bz-publish-asset>' +
+              '<span>' + esc(asset) + '</span>' +
+            '</label>';
+          }).join("") +
+        '</div>' +
+      '</div>' +
+      '<label class="publish-toggle">' +
+        '<input type="checkbox" checked data-bz-publish-preview>' +
+        '<div><strong>允许免费试读前 3 段</strong><span>同学可以预览部分内容再决定是否购买</span></div>' +
+      '</label>' +
+      '<button class="primary-action full" type="button" data-bz-publish-confirm>确认发布</button>' +
+    '</section>';
+  }
+
+  function publishMetaInput(key, label, value) {
+    return '<label><span>' + esc(label) + '</span><input value="' + esc(value) + '" data-bz-publish-meta="' + esc(key) + '"></label>';
+  }
+
+  function bindPublishModal(modal, record) {
+    modal.addEventListener("click", function(event) {
+      if (event.target === modal || event.target.closest("[data-bz-publish-close]")) {
+        closePublishModal();
+      }
+    });
+
+    modal.querySelectorAll("[data-bz-publish-price]").forEach(function(button) {
+      button.addEventListener("click", function() {
+        modal.querySelectorAll("[data-bz-publish-price]").forEach(function(item) {
+          item.classList.remove("active");
+        });
+        button.classList.add("active");
+        var input = modal.querySelector("[data-bz-publish-price-input]");
+        if (input) {
+          input.value = button.getAttribute("data-bz-publish-price") || "30";
+        }
+        updatePublishConfirmState(modal);
+      });
+    });
+
+    var priceInput = modal.querySelector("[data-bz-publish-price-input]");
+    if (priceInput) {
+      priceInput.addEventListener("input", function() {
+        var value = Number(priceInput.value || 0);
+        modal.querySelectorAll("[data-bz-publish-price]").forEach(function(button) {
+          button.classList.toggle("active", Number(button.getAttribute("data-bz-publish-price")) === value);
+        });
+        updatePublishConfirmState(modal);
+      });
+    }
+
+    modal.querySelectorAll("[data-bz-publish-scope]").forEach(function(button) {
+      button.addEventListener("click", function() {
+        modal.querySelectorAll("[data-bz-publish-scope]").forEach(function(item) {
+          item.classList.remove("active");
+        });
+        button.classList.add("active");
+      });
+    });
+
+    modal.querySelectorAll("[data-bz-publish-asset]").forEach(function(input) {
+      input.addEventListener("change", function() {
+        var label = input.closest(".publish-asset-item");
+        if (label) {
+          label.classList.toggle("active", input.checked);
+        }
+        updatePublishConfirmState(modal);
+      });
+    });
+
+    var confirm = modal.querySelector("[data-bz-publish-confirm]");
+    if (confirm) {
+      confirm.addEventListener("click", function() {
+        confirmPublishRecord(record, modal);
+      });
+    }
+
+    updatePublishConfirmState(modal);
+  }
+
+  function updatePublishConfirmState(modal) {
+    var confirm = modal.querySelector("[data-bz-publish-confirm]");
+    var price = Number((modal.querySelector("[data-bz-publish-price-input]") || {}).value || 0);
+    var checked = modal.querySelectorAll("[data-bz-publish-asset]:checked").length;
+    if (confirm) {
+      confirm.disabled = price < 1 || checked === 0;
+    }
+  }
+
+  function confirmPublishRecord(record, modal) {
+    var meta = {};
+    modal.querySelectorAll("[data-bz-publish-meta]").forEach(function(input) {
+      meta[input.getAttribute("data-bz-publish-meta")] = input.value.trim();
+    });
+
+    var price = Number((modal.querySelector("[data-bz-publish-price-input]") || {}).value || 0);
+    var scopeButton = modal.querySelector("[data-bz-publish-scope].active");
+    var assets = Array.prototype.slice.call(modal.querySelectorAll("[data-bz-publish-asset]:checked")).map(function(input) {
+      return input.value;
+    });
+    var publishedAt = new Date().toISOString();
+
+    var updated = updateAudioRecord(record.id, {
+      meta: Object.assign({}, record.meta || {}, meta),
+      publish: {
+        id: record.publish && record.publish.id ? record.publish.id : "published-" + Date.now(),
+        sourceRecordId: record.id,
+        ownerUserId: currentUserId(),
+        title: meta.course || displayRecordTitle(record),
+        excerpt: publishExcerptForRecord(record),
+        price: price,
+        scope: scopeButton ? scopeButton.getAttribute("data-bz-publish-scope") : "school",
+        assets: assets,
+        allowPreview: Boolean(modal.querySelector("[data-bz-publish-preview]:checked")),
+        publishedAt: publishedAt,
+      },
+    });
+
+    closePublishModal();
+    clickKnowledgeMarketNav();
+    showFloatingToast("已发布到知识广场 · " + price + " 积分");
+    schedulePublishedMarketRender();
+    if (updated) {
+      renderAudioRecordsPanel(updated.id);
+    }
+  }
+
+  function schedulePublishedMarketRender() {
+    [180, 420, 860, 1400].forEach(function(delay) {
+      window.setTimeout(renderPublishedMarketCards, delay);
+    });
+  }
+
+  async function renderPublishedMarketCards() {
+    var marketList = document.querySelector(".market-list");
+    var marketCard = document.querySelector(".market-list-card");
+    if (!marketCard) {
+      return;
+    }
+
+    var records = publishedLocalRecords();
+    try {
+      var response = await fetch(AUDIO_RECORD_ENDPOINT + "?published=1", { method: "GET" });
+      var data = await response.json().catch(function() {
+        return {};
+      });
+      if (response.ok && Array.isArray(data.records)) {
+        data.records.forEach(function(record) {
+          records.push(normalizeServerRecord(record));
+        });
+      }
+    } catch {
+    }
+
+    records = uniquePublishedRecords(records);
+    if (!records.length) {
+      return;
+    }
+
+    if (!marketList) {
+      var empty = marketCard.querySelector(".market-empty");
+      if (empty) {
+        empty.remove();
+      }
+      marketList = document.createElement("div");
+      marketList.className = "market-list";
+      marketCard.appendChild(marketList);
+    }
+
+    marketList.querySelectorAll(".bz-published-market-card").forEach(function(card) {
+      card.remove();
+    });
+    marketList.insertAdjacentHTML("afterbegin", records.map(publishedMarketCardHtml).join(""));
+  }
+
+  function publishedLocalRecords() {
+    return loadAllAudioRecords().filter(function(record) {
+      return record.publish && record.publish.publishedAt;
+    });
+  }
+
+  function uniquePublishedRecords(records) {
+    var seen = {};
+    return sortAudioRecords(records.filter(function(record) {
+      if (!record || !record.id || seen[record.id] || !(record.publish && record.publish.publishedAt)) {
+        return false;
+      }
+      seen[record.id] = true;
+      return true;
+    }));
+  }
+
+  function publishedMarketCardHtml(record) {
+    var meta = record.meta || {};
+    var publish = record.publish || {};
+    var summary = record.artifacts && record.artifacts.summary ? record.artifacts.summary : {};
+    var title = publish.title || displayRecordTitle(record);
+    var school = meta.school || "北京某大学";
+    var major = meta.major || "课堂笔记";
+    var author = "我";
+    var price = Number(publish.price || 30);
+    var tags = (publish.assets && publish.assets.length ? publish.assets : ["笔记重点", "测试题集"]).slice(0, 2);
+    var excerpt = publish.excerpt || summary.overview || publishExcerptForRecord(record);
+    var unlockAttr = isOwnPublishedRecord(record) ? "data-bz-own-note-unlock" : "data-bz-published-note-unlock";
+
+    return '<article class="bz-published-market-card" data-bz-published-record-id="' + esc(record.id) + '">' +
+      '<div class="market-card-top">' +
+        '<span class="market-card-meta">' + esc(school) + ' · ' + esc(major) + '</span>' +
+        '<h3>' + esc(title) + '</h3>' +
+        '<p>' + esc(excerpt) + '</p>' +
+        '<div class="market-card-tags">' + tags.map(function(tag) {
+          return '<span>' + esc(tag) + '</span>';
+        }).join("") + '</div>' +
+      '</div>' +
+      '<div class="market-card-foot">' +
+        '<small>✎ ' + esc(author) + '</small>' +
+        '<strong>' + esc(price) + ' 积分</strong>' +
+      '</div>' +
+      '<button class="primary-action" type="button" ' + unlockAttr + '="' + esc(record.id) + '">立即解锁</button>' +
+    '</article>';
+  }
+
+  function isOwnPublishedRecord(record) {
+    var publish = record && record.publish ? record.publish : {};
+    var userId = currentUserId();
+    return !record || !record.userId || record.userId === userId || publish.ownerUserId === userId;
+  }
+
+  function publishExcerptForRecord(record) {
+    var summary = record && record.artifacts && record.artifacts.summary ? record.artifacts.summary : {};
+    if (summary.overview) {
+      return trimPublishExcerpt(summary.overview);
+    }
+
+    var content = record && (record.transcript || record.content || "");
+    if (Array.isArray(record && record.segments)) {
+      content = record.segments.map(function(segment) {
+        return segment && segment.text ? segment.text : "";
+      }).join(" ") || content;
+    }
+
+    if (content) {
+      return trimPublishExcerpt(content);
+    }
+
+    return "由课堂录音自动整理，包含转译文本、结构化总结、测试题集和复习建议，适合课后快速回顾。";
+  }
+
+  function trimPublishExcerpt(text) {
+    var value = String(text || "").replace(/\s+/g, " ").trim();
+    if (value.length <= 72) {
+      return value;
+    }
+    return value.slice(0, 72) + "...";
+  }
+
+  function renderAudioEmptyDetail() {
+    var detail = document.querySelector(".note-detail-card");
+    if (!detail) {
+      return;
+    }
+    detail.innerHTML = '<div class="notes-purchased-empty" style="margin:auto"><p>选择一条真实课堂录音查看内容</p></div>';
+  }
+
+  function detailTabButton(key, label, active) {
+    return '<button class="' + (key === active ? "active" : "") + '" data-bz-detail-tab="' + esc(key) + '">' + esc(label) + '</button>';
+  }
+
+  function detailTabHtml(record, text, tab) {
+    if (tab === "summary" || tab === "quiz" || tab === "review") {
+      return artifactPanelHtml(record, tab);
+    }
+
+    return transcriptDetailHtml(record, text);
+  }
+
+  async function generateArtifact(recordId, task) {
+    var record = loadAudioRecords().find(function(item) {
+      return item.id === recordId;
+    });
+    if (!record || !task) {
+      return;
+    }
+
+    try {
+      updateAudioRecord(recordId, {
+        processing: Object.assign({}, record.processing, { [task]: "running" }),
+      });
+      renderAudioRecordDetail(recordId);
+      await runAudioTask(recordId, task);
+      activeDetailTab = task;
+      renderAudioRecordsPanel(recordId);
+    } catch (error) {
+      var processing = Object.assign({}, record.processing, { [task]: "failed" });
+      processing.errors = Object.assign({}, processing.errors, { [task]: error.message });
+      updateAudioRecord(recordId, { processing: processing });
+      renderAudioRecordDetail(recordId);
+    }
+  }
+
+  function artifactPanelHtml(record, task) {
+    var processing = record.processing || {};
+    var artifacts = record.artifacts || {};
+    var status = processing[task] || "pending";
+    var artifact = artifacts[task];
+    var label = artifactLabel(task);
+
+    if (status === "running") {
+      return artifactEmptyStateHtml(task, {
+        title: label + "生成中",
+        description: "小智正在读取完整课堂内容，请稍等片刻。",
+        busy: true,
+      });
+    }
+
+    if (status === "failed") {
+      var message = processing.errors && processing.errors[task] ? processing.errors[task] : "生成失败，请重试。";
+      return artifactEmptyStateHtml(task, {
+        title: label + "生成失败",
+        description: message,
+        buttonText: "重新生成" + label,
+        error: true,
+      });
+    }
+
+    if (!artifact) {
+      if (!(record.transcript || record.content)) {
+        return artifactEmptyStateHtml(task, {
+          title: "等待转写完成",
+          description: "精细转写完成后，小智会基于完整课堂内容生成" + label + "。",
+          busy: true,
+        });
+      }
+      return artifactEmptyStateHtml(task, artifactEmptyCopy(task));
+    }
+
+    if (task === "quiz") {
+      return quizArtifactHtml(artifact);
+    }
+
+    if (task === "review") {
+      return reviewArtifactHtml(artifact);
+    }
+
+    return summaryArtifactHtml(artifact);
+  }
+
+  function summaryArtifactHtml(artifact) {
+    var keyPoints = toArray(artifact.keyPoints).slice(0, 4);
+    var terms = toArray(artifact.terms).slice(0, 4);
+    var questions = toArray(artifact.openQuestions).slice(0, 3);
+    var timeline = toArray(artifact.timeline).slice(0, 2);
+    var firstPoint = keyPoints[0] || {};
+    var tags = terms.length ? terms.map(function(item) {
+      return item.term || item.title || item;
+    }) : keyPoints.map(function(item) {
+      return item.title || item;
+    });
+
+    return '<div class="generated-wrap bz-generated-wrap">' +
+      regenerateBarHtml("已由小智整理 · 刚刚", "summary", "重新生成") +
+      '<div class="summary-board">' +
+        '<section class="summary-hero">' +
+          '<div>' +
+            '<span>AI 结构化笔记</span>' +
+            '<h3>' + esc(artifact.title || firstPoint.title || "智能总结") + '</h3>' +
+            '<p>' + esc(artifact.overview || firstPoint.detail || "小智已根据课堂转写整理出本节课的复习要点。") + '</p>' +
+          '</div>' +
+          '<div class="formula-card">' +
+            '<strong>本节重点</strong>' +
+            keyPoints.slice(0, 3).map(function(item) {
+              return '<span>' + esc(item.title || item.detail || item) + '</span>';
+            }).join("") +
+          '</div>' +
+        '</section>' +
+        '<section class="chalk-sketch">' +
+          '<div class="axis-card"><span class="axis-dot peak"></span><span class="axis-dot saddle"></span><span class="axis-curve"></span></div>' +
+          '<div>' +
+            '<h4>课堂线索</h4>' +
+            '<p>' + esc(firstPoint.evidence || firstPoint.detail || artifact.overview || "围绕课堂原文提炼知识点、证据和复习入口。") + '</p>' +
+            '<div class="summary-tags">' + tags.slice(0, 4).map(function(tag) { return '<span>' + esc(tag) + '</span>'; }).join("") + '</div>' +
+          '</div>' +
+        '</section>' +
+        '<section class="cornell-note">' +
+          '<div>' +
+            '<h4>追问线索</h4>' +
+            (questions.length ? questions.map(function(item) { return '<p>' + esc(item) + '</p>'; }).join("") : '<p>暂无待追问问题。</p>') +
+          '</div>' +
+          '<div>' +
+            '<h4>课堂笔记</h4>' +
+            '<ul>' + keyPoints.map(function(item) {
+              return '<li>' + esc(item.title || "知识点") + (item.detail ? "：" + esc(item.detail) : "") + '</li>';
+            }).join("") + '</ul>' +
+          '</div>' +
+        '</section>' +
+        '<section class="review-grid">' +
+          timeline.map(function(item) {
+            return '<article><strong>' + esc((item.time || "") + (item.speaker ? " · " + item.speaker : "")) + '</strong><p>' + esc(item.text || item.summary || "") + '</p></article>';
+          }).join("") +
+        '</section>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function quizArtifactHtml(artifact) {
+    var questions = toArray(artifact.questions).slice(0, 10);
+    return '<div class="generated-wrap bz-generated-wrap">' +
+      regenerateBarHtml("共 " + questions.length + " 道题 · 难度自适应", "quiz", "换一批") +
+      '<div class="exam-board">' +
+        questions.map(function(item, index) {
+          var tone = difficultyTone(item.difficulty);
+          var level = difficultyLabel(item.difficulty);
+          var options = toArray(item.options);
+          return '<article class="exam-card ' + tone + '">' +
+            '<header><span class="exam-tag">Q' + (index + 1) + ' · ' + esc(level) + '</span><strong>' + esc(item.question || item.title || "题目") + '</strong></header>' +
+            (options.length ? '<ol class="bz-exam-options">' + options.map(function(option) { return '<li>' + esc(option) + '</li>'; }).join("") + '</ol>' : "") +
+            (item.relatedPoint ? '<p>关联知识点：' + esc(item.relatedPoint) + '</p>' : "") +
+          '</article>';
+        }).join("") +
+      '</div>' +
+      '<div class="do-exercise-cta">' +
+        '<button type="button" class="do-exercise-btn" data-bz-do-exercise><span>立即做题</span><span class="do-exercise-badge">随写随存 3.0</span></button>' +
+        '<p class="do-exercise-hint">连接 3.0 智能笔，书写过程实时同步入库</p>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function openExerciseSheet(recordId) {
+    var record = loadAudioRecords().find(function(item) {
+      return item.id === recordId;
+    });
+    var questions = record && record.artifacts && record.artifacts.quiz ? toArray(record.artifacts.quiz.questions) : [];
+
+    if (!record || !questions.length) {
+      return;
+    }
+
+    closeExerciseSheet();
+
+    var sheet = document.createElement("div");
+    sheet.className = "ea-backdrop bz-ea-backdrop";
+    sheet.setAttribute("role", "presentation");
+    sheet.innerHTML =
+      '<div class="ea-sheet bz-ea-sheet" role="dialog" aria-label="答题卷">' +
+        '<div class="ea-header">' +
+          '<div><h2 class="ea-title">答题卷</h2><p class="ea-meta">共 ' + questions.length + ' 道题 · ' + esc((record.meta && record.meta.course) || record.title || "课堂练习") + '</p></div>' +
+          '<button type="button" class="ea-close" data-bz-close-exercise aria-label="关闭">✕</button>' +
+        '</div>' +
+        '<div class="ea-body">' +
+          questions.map(function(item, index) {
+            var tone = difficultyTone(item.difficulty);
+            var level = difficultyLabel(item.difficulty);
+            var options = toArray(item.options);
+            return '<div class="ea-question">' +
+              '<div class="ea-q-header"><span class="ea-q-tag tone-' + tone + '">Q' + (index + 1) + ' · ' + esc(level) + '</span><p class="ea-q-text">' + esc(item.question || item.title || "题目") + '</p></div>' +
+              (options.length ? '<p class="ea-q-hint">' + esc(options.join("　")) + '</p>' : (item.relatedPoint ? '<p class="ea-q-hint">关联知识点：' + esc(item.relatedPoint) + '</p>' : "")) +
+              '<div class="ea-answer-zone"><span class="ea-answer-label">作答区</span><div class="ea-answer-lines">' +
+                Array.from({ length: 6 }).map(function(_, lineIndex) {
+                  return '<div class="ea-line" data-line="' + lineIndex + '"></div>';
+                }).join("") +
+              '</div></div>' +
+            '</div>';
+          }).join("") +
+        '</div>' +
+        '<div class="ea-footer">' +
+          '<div class="ea-footer-inner">' +
+            '<div class="ea-footer-copy"><p class="ea-footer-title">随写随存 智能笔 3.0</p><p class="ea-footer-desc">连接后，纸上书写的答案将实时同步到此界面</p></div>' +
+            '<button type="button" class="ea-connect-btn" data-bz-connect-pen>链接智能笔，开启智能答题</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(sheet);
+    sheet.addEventListener("click", function(event) {
+      if (event.target === sheet || event.target.closest("[data-bz-close-exercise]")) {
+        closeExerciseSheet();
+      }
+
+      if (event.target.closest("[data-bz-connect-pen]")) {
+        showExerciseToast(sheet);
+      }
+    });
+  }
+
+  function closeExerciseSheet() {
+    var existing = document.querySelector(".bz-ea-backdrop");
+    if (existing) {
+      existing.remove();
+    }
+  }
+
+  function showExerciseToast(sheet) {
+    var footer = sheet.querySelector(".ea-footer");
+    var existing = sheet.querySelector(".ea-local-toast");
+    if (existing) {
+      existing.remove();
+    }
+
+    if (!footer) {
+      return;
+    }
+
+    var toast = document.createElement("div");
+    toast.className = "ea-local-toast";
+    toast.textContent = "敬请期待";
+    footer.appendChild(toast);
+    window.setTimeout(function() {
+      toast.remove();
+    }, 2000);
+  }
+
+  function reviewArtifactHtml(artifact) {
+    var schedule = toArray(artifact.schedule).slice(0, 7);
+    var suggestions = toArray(artifact.suggestions).slice(0, 4);
+    var weakPoints = toArray(artifact.weakPoints).slice(0, 4);
+    var cards = schedule.length ? schedule : suggestions.map(function(item) {
+      return {
+        day: priorityLabel(item.priority),
+        title: item.title,
+        task: item.action || item.reason,
+        priority: item.priority,
+      };
+    });
+
+    return '<div class="generated-wrap bz-generated-wrap">' +
+      regenerateBarHtml((schedule.length || 3) + " 天循序复习计划 · 个性化", "review", "重新生成") +
+      '<div class="exam-board">' +
+        cards.map(function(item, index) {
+          var tone = difficultyTone(item.priority || (index === 0 ? "high" : index === 1 ? "medium" : "low"));
+          return '<article class="exam-card ' + tone + '">' +
+            '<header><span class="exam-tag">' + esc(item.day || ("第 " + (index + 1) + " 天")) + '</span><strong>' + esc(item.title || item.task || "复习任务") + '</strong></header>' +
+            '<p>' + esc((item.task || item.action || item.reason || "") + (item.minutes ? " · " + item.minutes + " 分钟" : "")) + '</p>' +
+          '</article>';
+        }).join("") +
+      '</div>' +
+    '</div>';
+  }
+
+  function regenerateBarHtml(meta, task, label) {
+    return '<div class="regenerate-bar">' +
+      '<span>' + esc(meta) + '</span>' +
+      '<button type="button" data-bz-generate-artifact="' + esc(task) + '">' + sparkleIcon() + ' ' + esc(label) + '</button>' +
+    '</div>';
+  }
+
+  function toArray(value) {
+    if (Array.isArray(value)) {
+      return value.filter(function(item) {
+        return item !== null && item !== undefined && item !== "";
+      });
+    }
+    if (value === null || value === undefined || value === "") {
+      return [];
+    }
+    return [value];
+  }
+
+  function difficultyTone(value) {
+    var text = String(value || "").toLowerCase();
+    if (text.indexOf("hard") >= 0 || text.indexOf("high") >= 0 || text.indexOf("拔高") >= 0 || text.indexOf("高") >= 0) return "high";
+    if (text.indexOf("medium") >= 0 || text.indexOf("mid") >= 0 || text.indexOf("中") >= 0) return "mid";
+    return "low";
+  }
+
+  function difficultyLabel(value) {
+    var text = String(value || "").toLowerCase();
+    if (text.indexOf("hard") >= 0 || text.indexOf("high") >= 0 || text.indexOf("拔高") >= 0 || text.indexOf("高") >= 0) return "拔高";
+    if (text.indexOf("medium") >= 0 || text.indexOf("mid") >= 0 || text.indexOf("中") >= 0) return "中等";
+    return "基础";
+  }
+
+  function priorityLabel(value) {
+    var text = String(value || "").toLowerCase();
+    if (text.indexOf("high") >= 0 || text.indexOf("高") >= 0) return "优先";
+    if (text.indexOf("medium") >= 0 || text.indexOf("中") >= 0) return "重点";
+    return "巩固";
+  }
+
+  function reviewOverview(artifact, suggestions, weakPoints) {
+    if (artifact.overview) return artifact.overview;
+    if (suggestions[0] && suggestions[0].reason) return suggestions[0].reason;
+    if (weakPoints.length) return "优先补强：" + weakPoints.join("、");
+    return "小智已根据课堂重点，为你安排一份可执行的复习节奏。";
+  }
+
+  function artifactListHtml(title, items, renderItem) {
+    if (!Array.isArray(items) || !items.length) {
+      return "";
+    }
+    return '<div class="bz-artifact-group">' + (title ? '<h4>' + esc(title) + '</h4>' : "") +
+      '<div class="bz-artifact-list">' + items.map(function(item, index) {
+        return '<article>' + renderItem(item || {}, index) + '</article>';
+      }).join("") + '</div></div>';
+  }
+
+  function artifactStringListHtml(title, items, tag) {
+    if (!Array.isArray(items) || !items.length) {
+      return "";
+    }
+    var listTag = tag || "ul";
+    return '<div class="bz-artifact-group">' + (title ? '<h4>' + esc(title) + '</h4>' : "") +
+      '<' + listTag + '>' + items.map(function(item) {
+        return '<li>' + esc(item) + '</li>';
+      }).join("") + '</' + listTag + '></div>';
+  }
+
+  function artifactLabel(task) {
+    if (task === "quiz") return "测试题集";
+    if (task === "review") return "复习建议";
+    return "智能总结";
+  }
+
+  function artifactEmptyCopy(task) {
+    if (task === "quiz") {
+      return {
+        title: "还没有测试题集",
+        description: "让小智根据这节课的重点，生成一组可练习的测试题。",
+        buttonText: "生成测试题集",
+      };
+    }
+
+    if (task === "review") {
+      return {
+        title: "还没有复习建议",
+        description: "让小智结合课堂内容和薄弱点，安排一份可执行的复习计划。",
+        buttonText: "生成复习建议",
+      };
+    }
+
+    return {
+      title: "还没有智能总结",
+      description: "让小智读完整段课堂内容，给你一份结构化的复习要点。",
+      buttonText: "生成智能总结",
+    };
+  }
+
+  function artifactEmptyStateHtml(task, copy) {
+    var button = copy.busy ? "" :
+      '<button type="button" class="primary-action note-empty-action" data-bz-generate-artifact="' + esc(task) + '">' +
+        sparkleIcon() +
+        '<span>' + esc(copy.buttonText || ("生成" + artifactLabel(task))) + '</span>' +
+      '</button>';
+
+    return '<div class="note-empty bz-online-empty ' + (copy.error ? "is-error" : "") + (copy.busy ? " is-loading" : "") + '">' +
+      '<div class="note-empty-icon">' + wandIcon() + '</div>' +
+      '<h3>' + esc(copy.title) + '</h3>' +
+      '<p>' + esc(copy.description) + '</p>' +
+      (copy.busy ? '<span class="bz-loading-dots" aria-hidden="true"><i></i><i></i><i></i></span>' : '') +
+      button +
+    '</div>';
+  }
+
+  function transcriptDetailHtml(record, fallbackText) {
+    var segments = normalizeSpeakerSegments(record.segments || []);
+    if (segments.length) {
+      return '<div class="speaker-list bz-audio-speaker-list">' + segments.map(function(segment, index) {
+        return '<article><time>' + esc(formatRecordSegmentTime(record, segment, index)) + '</time><p><strong>' + esc(speakerLabel(segment)) + '</strong>' + esc(segment.text || "") + '</p></article>';
+      }).join("") + '</div>';
+    }
+
+    var lines = splitTranscriptLines(fallbackText);
+    if (lines.length) {
+      return '<div class="speaker-list bz-audio-speaker-list">' + lines.map(function(line, index) {
+        return '<article><time>' + esc(formatRecordSegmentTime(record, { start: index * 6 }, index)) + '</time><p><strong>' + esc(defaultSpeakerLabel()) + '</strong>' + esc(line) + '</p></article>';
+      }).join("") + '</div>';
+    }
+
+    return '<p class="bz-audio-empty">精细化转写与说话人分离正在准备中。</p>';
+  }
+
+  function formatRecordSegmentTime(record, segment, index) {
+    var created = record && record.createdAt ? new Date(record.createdAt) : null;
+    var base = created && !Number.isNaN(created.getTime()) ? created : new Date();
+    var offset = segment && typeof segment.start === "number" ? segment.start : index * 6;
+    var time = new Date(base.getTime() + Math.max(0, offset || 0) * 1000);
+    return pad(time.getHours()) + ":" + pad(time.getMinutes()) + ":" + pad(time.getSeconds());
+  }
+
+  function displayRecordTitle(record) {
+    var summary = record && record.artifacts && record.artifacts.summary;
+    if (summary && summary.title) {
+      return summary.title;
+    }
+
+    if (record && record.title) {
+      return record.title;
+    }
+
+    var date = record && record.createdAt ? new Date(record.createdAt) : new Date();
+    if (Number.isNaN(date.getTime())) {
+      date = new Date();
+    }
+    return "新录音 " + pad(date.getFullYear()) + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) + " " + pad(date.getHours()) + ":" + pad(date.getMinutes());
+  }
+
+  function formatRecordTime(value) {
+    var date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) {
+      date = new Date();
+    }
+    return pad(date.getFullYear()) + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) + " " + pad(date.getHours()) + ":" + pad(date.getMinutes()) + ":" + pad(date.getSeconds());
+  }
+
+  function currentUserId() {
+    var value = window.BAIZHI_USER_ID || localStorage.getItem(MOCK_USER_KEY);
+    if (!value) {
+      value = "baizhi_student_web";
+      localStorage.setItem(MOCK_USER_KEY, value);
+    }
+    return value;
+  }
+
+  function saveAudioBlob(id, blob) {
+    if (!blob || !window.indexedDB) {
+      return;
+    }
+
+    var request = indexedDB.open(AUDIO_DB_NAME, 1);
+    request.onupgradeneeded = function(event) {
+      var db = event.target.result;
+      if (!db.objectStoreNames.contains(AUDIO_BLOB_STORE)) {
+        db.createObjectStore(AUDIO_BLOB_STORE);
+      }
+    };
+    request.onsuccess = function(event) {
+      var db = event.target.result;
+      var tx = db.transaction(AUDIO_BLOB_STORE, "readwrite");
+      tx.objectStore(AUDIO_BLOB_STORE).put(blob, id);
+      tx.oncomplete = function() {
+        db.close();
+      };
+      tx.onerror = function() {
+        db.close();
+      };
+    };
+  }
+
+  function deleteAudioBlob(id) {
+    if (!id || !window.indexedDB) {
+      return;
+    }
+
+    var request = indexedDB.open(AUDIO_DB_NAME, 1);
+    request.onupgradeneeded = function(event) {
+      var db = event.target.result;
+      if (!db.objectStoreNames.contains(AUDIO_BLOB_STORE)) {
+        db.createObjectStore(AUDIO_BLOB_STORE);
+      }
+    };
+    request.onsuccess = function(event) {
+      var db = event.target.result;
+      var tx = db.transaction(AUDIO_BLOB_STORE, "readwrite");
+      tx.objectStore(AUDIO_BLOB_STORE).delete(id);
+      tx.oncomplete = function() {
+        db.close();
+      };
+      tx.onerror = function() {
+        db.close();
+      };
+    };
+  }
+
+  function showAudioListToast(message) {
+    var host = document.getElementById("bz-audio-records-panel");
+    if (!host) {
+      return;
+    }
+
+    var old = host.querySelector(".bz-audio-list-toast");
+    if (old) {
+      old.remove();
+    }
+
+    var toast = document.createElement("div");
+    toast.className = "bz-audio-list-toast";
+    toast.textContent = message;
+    host.appendChild(toast);
+    window.setTimeout(function() {
+      toast.remove();
+    }, 2600);
+  }
+
+  function clickKnowledgeMarketNav() {
+    var buttons = Array.prototype.slice.call(document.querySelectorAll("button"));
+    var target = buttons.find(function(button) {
+      return button.textContent && button.textContent.replace(/\s+/g, "").indexOf("知识广场") >= 0;
+    });
+
+    if (target) {
+      target.click();
+    }
+  }
+
+  function showFloatingToast(message) {
+    var old = document.querySelector(".floating-toast.bz-publish-toast");
+    if (old) {
+      old.remove();
+    }
+
+    var toast = document.createElement("div");
+    toast.className = "floating-toast bz-publish-toast";
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    window.setTimeout(function() {
+      toast.remove();
+    }, 2600);
   }
 
   function askXiaoZhi() {
@@ -685,6 +2457,59 @@
     }
   }
 
+  function hasActiveRecordingSession() {
+    return ["requesting", "recording", "transcribing", "batch-transcribing", "confirming"].indexOf(state.mode) >= 0;
+  }
+
+  function scheduleRecorderReattach() {
+    if (!hasActiveRecordingSession()) {
+      return;
+    }
+
+    clearTimeout(reattachTimer);
+    reattachTimer = window.setTimeout(function() {
+      if (!hasActiveRecordingSession()) {
+        return;
+      }
+
+      if (state.mode === "confirming") {
+        renderConfirmOverlay();
+        return;
+      }
+
+      renderModal();
+    }, 120);
+
+    window.setTimeout(function() {
+      if (hasActiveRecordingSession() && state.mode !== "confirming") {
+        renderModal();
+      }
+    }, 420);
+  }
+
+  function observeClassroomHost() {
+    if (!window.MutationObserver || classroomHostObserver) {
+      return;
+    }
+
+    classroomHostObserver = new MutationObserver(function() {
+      if (!hasActiveRecordingSession() || state.mode === "confirming") {
+        return;
+      }
+
+      var host = getClassroomHost();
+      var mountedRecorder = document.querySelector("#bz-asr-modal.bz-asr-old-recorder");
+      if (host && !mountedRecorder) {
+        scheduleRecorderReattach();
+      }
+    });
+
+    classroomHostObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
   function scheduleRender() {
     renderModal();
     window.setTimeout(renderModal, 80);
@@ -696,6 +2521,11 @@
   }
 
   function restoreClassroomHost() {
+    var overlay = document.querySelector("#bz-asr-modal.bz-confirm-overlay");
+    if (overlay && overlay.parentNode) {
+      overlay.parentNode.removeChild(overlay);
+    }
+
     var host = getClassroomHost();
     if (!host) {
       return;
@@ -728,11 +2558,123 @@
       return "";
     }
 
-    var lines = splitTranscriptLines(text);
-    return lines.map(function(line, index) {
-      var isCurrent = !includeAllDone && index === lines.length - 1 && !/[。！？!?；;]$/.test(line);
+    var entries = transcriptEntries(text);
+    return entries.map(function(entry, index) {
+      var line = entry.text || "";
+      var isCurrent = !includeAllDone && index === entries.length - 1 && !/[。！？!?；;]$/.test(line);
       return '<p class="bz-asr-line ' + (isCurrent ? "is-current" : "") + '"><span class="bz-asr-line-time">' + esc(formatLineTime(index)) + '</span><span class="bz-asr-line-text">' + esc(line) + '</span></p>';
     }).join("");
+  }
+
+  function transcriptEntries(text) {
+    var requestedText = typeof text === "string" ? text : state.text;
+    var normalizedSegments = normalizeSpeakerSegments(state.segments || []);
+
+    if (normalizedSegments.length) {
+      return normalizedSegments;
+    }
+
+    return splitTranscriptLines(requestedText).map(function(line, index) {
+      return {
+        text: line,
+        speaker: defaultSpeakerLabel(),
+        start: index * 8,
+      };
+    });
+  }
+
+  function normalizeSpeakerSegments(segments) {
+    if (!Array.isArray(segments)) {
+      return [];
+    }
+
+    return segments.map(function(segment, index) {
+      var text = String((segment && segment.text) || "").trim();
+      if (!text) {
+        return null;
+      }
+
+      return {
+        index: segment.index == null ? index + 1 : segment.index,
+        start: typeof segment.start === "number" ? segment.start : null,
+        end: typeof segment.end === "number" ? segment.end : null,
+        text: text,
+        speaker: speakerLabel(segment),
+        confidence: segment.confidence,
+      };
+    }).filter(Boolean);
+  }
+
+  function speakerLabel(segment) {
+    var namedSpeaker = firstPresent(segment, ["speaker", "speakerLabel", "speaker_label"]);
+    var speakerId = firstPresent(segment, ["speakerId", "speaker_id"]);
+
+    if (namedSpeaker !== undefined && namedSpeaker !== null && namedSpeaker !== "") {
+      return normalizeNamedSpeaker(namedSpeaker);
+    }
+
+    if (speakerId !== undefined && speakerId !== null && speakerId !== "") {
+      return speakerAlias(speakerId);
+    }
+
+    return defaultSpeakerLabel();
+  }
+
+  function normalizeNamedSpeaker(raw) {
+    var value = String(raw || "").trim();
+    if (!value) {
+      return defaultSpeakerLabel();
+    }
+
+    if (/^speaker\s+/i.test(value)) {
+      return value.replace(/^speaker/i, "Speaker");
+    }
+
+    if (/^[A-Z]$/i.test(value)) {
+      return "Speaker " + value.toUpperCase();
+    }
+
+    return value;
+  }
+
+  function speakerAlias(id) {
+    var key = String(id).trim();
+
+    if (!speakerAliasMap[key]) {
+      speakerAliasMap[key] = "Speaker " + String.fromCharCode(65 + (speakerAliasNext % 26));
+      speakerAliasNext += 1;
+    }
+
+    return speakerAliasMap[key];
+  }
+
+  function resetSpeakerAliases() {
+    speakerAliasMap = {};
+    speakerAliasNext = 0;
+  }
+
+  function firstPresent(source, keys) {
+    if (!source) {
+      return undefined;
+    }
+
+    for (var i = 0; i < keys.length; i += 1) {
+      var value = source[keys[i]];
+      if (value !== undefined && value !== null && value !== "") {
+        return value;
+      }
+    }
+
+    return undefined;
+  }
+
+  function defaultSpeakerLabel() {
+    return window.BAIZHI_ASR_DEFAULT_SPEAKER || "Speaker A";
+  }
+
+  function formatEntryWallTime(entry, index) {
+    var offset = entry && typeof entry.start === "number" ? entry.start : index * 8;
+    return formatWallTime(offset);
   }
 
   function syncLiveLines(text) {
@@ -867,6 +2809,10 @@
     return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>';
   }
 
+  function marketIcon() {
+    return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.4-4h11.2L22 7"></path><path d="M4 7v13h16V7"></path><path d="M9 20v-6h6v6"></path><path d="M2 7h20"></path><path d="M7 7v3"></path><path d="M12 7v3"></path><path d="M17 7v3"></path></svg>';
+  }
+
   function pauseIcon() {
     return '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5v14"></path><path d="M14 5v14"></path></svg>';
   }
@@ -877,6 +2823,18 @@
 
   function squareIcon() {
     return '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="1.5"></rect></svg>';
+  }
+
+  function chevronIcon(isOpen) {
+    return '<svg class="' + (isOpen ? "is-open" : "") + '" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>';
+  }
+
+  function wandIcon() {
+    return '<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 4 5 5"></path><path d="M13 6 5 14l5 5 8-8"></path><path d="M9 15 15 9"></path><path d="M6 4v3"></path><path d="M4.5 5.5h3"></path><path d="M19 16v3"></path><path d="M17.5 17.5h3"></path></svg>';
+  }
+
+  function sparkleIcon() {
+    return '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 9.8 8.8 4 11l5.8 2.2L12 19l2.2-5.8L20 11l-5.8-2.2L12 3Z"></path><path d="M5 3v4"></path><path d="M3 5h4"></path><path d="M19 17v4"></path><path d="M17 19h4"></path></svg>';
   }
 
   function injectStyle() {
@@ -892,7 +2850,12 @@
       ".bz-asr-old-recorder .bz-asr-error-row p{color:#b42318}" +
       ".bz-asr-old-recorder .recorder-actions button:disabled{opacity:.45;cursor:not-allowed}" +
       ".bz-asr-old-recorder .primary-action[data-bz-asr-ask]{margin-left:8px}" +
-      "@media(max-width:720px){.bz-asr-old-recorder{min-height:calc(100vh - 120px)}.bz-asr-old-recorder .live-transcript{max-height:38vh}}";
+      ".bz-confirm-overlay{z-index:9999}.bz-confirm-shell{max-height:calc(100vh - 48px);overflow:auto}.bz-confirm-audio{display:flex;align-items:center;gap:10px;color:var(--muted,#6b7280);font-size:12px;font-weight:700}.bz-confirm-audio strong{color:var(--ink,#0f1110);font-variant-numeric:tabular-nums}.bz-confirm-audio audio{width:220px;height:32px}.bz-confirm-actions button:disabled{opacity:.55;cursor:not-allowed}.bz-confirm-error{padding:10px 12px;border-radius:12px;background:#fff2f0;color:#b42318;font-size:12px;font-weight:700;line-height:1.5}" +
+      ".bz-audio-records-panel{position:relative;border-bottom:1px solid var(--line,#e5e7eb);padding-bottom:14px;margin-bottom:10px}.bz-audio-record-card{position:relative}.bz-audio-record-card .mini-note{padding-right:42px}.bz-audio-record-card .mini-note strong{overflow-wrap:anywhere}.bz-audio-delete{position:absolute;top:16px;right:16px;z-index:3;display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;background:#0f11100d;color:#737a76;opacity:0;transform:translateY(-3px) scale(.94);cursor:pointer;transition:opacity .18s ease,transform .18s ease,background .18s ease,color .18s ease}.bz-audio-delete svg{width:17px;height:17px}.bz-audio-record-card:hover .bz-audio-delete,.bz-audio-record-card:focus-within .bz-audio-delete{opacity:1;transform:translateY(0) scale(1)}.bz-audio-delete:hover{background:#0f1110;color:#fff}.bz-audio-list-toast{position:absolute;left:18px;right:18px;bottom:8px;z-index:5;padding:9px 12px;border-radius:12px;background:#fff2f0;color:#b42318;font-size:12px;font-weight:800;box-shadow:0 10px 24px -14px #0f111059}.bz-audio-player{flex-shrink:0}.bz-audio-transcript{overflow:auto}.bz-note-title-block{min-width:0;flex:1}.bz-lesson-meta-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;max-width:100%}.bz-lesson-meta-chips span{display:inline-flex;align-items:center;gap:5px;max-width:220px;padding:5px 10px;border:1px solid rgba(168,212,0,.36);border-radius:999px;background:#f8ffdb;color:#4e6a00;font-size:12px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bz-lesson-meta-chips strong{color:#6b7400;font-weight:850}.bz-audio-speaker-list p strong{display:inline-block;margin-right:10px;color:#5f8c00;font-weight:800;white-space:nowrap}.bz-audio-empty{padding:18px;border:1px dashed var(--line,#e5e7eb);border-radius:14px;color:var(--muted,#6b7280)}" +
+      ".bz-publish-entry{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}.bz-publish-entry svg{width:16px;height:16px}.bz-publish-backdrop{z-index:9999}.bz-publish-modal{max-height:calc(100vh - 48px);overflow:auto}.bz-publish-modal .primary-action:disabled{opacity:.45;cursor:not-allowed}" +
+      ".bz-online-empty.is-error p{color:#b42318}.bz-online-empty.is-loading{min-height:380px}.bz-online-empty.is-loading .note-empty-icon{animation:bzArtifactIconFloat 1.8s ease-in-out infinite}.bz-online-empty.is-loading .note-empty-icon svg{animation:bzArtifactIconTilt 1.8s ease-in-out infinite}.bz-loading-dots{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:18px;margin-top:4px}.bz-loading-dots i{display:block;width:7px;height:7px;border-radius:50%;background:#9aa0a6;opacity:.42;animation:bzArtifactDot 1.05s ease-in-out infinite}.bz-loading-dots i:nth-child(2){animation-delay:.14s}.bz-loading-dots i:nth-child(3){animation-delay:.28s}@keyframes bzArtifactIconFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}@keyframes bzArtifactIconTilt{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(4deg)}}@keyframes bzArtifactDot{0%,80%,100%{transform:translateY(0);opacity:.34}40%{transform:translateY(-5px);opacity:1}}" +
+      ".note-empty-action svg{width:16px;height:16px}.note-empty-icon svg{width:26px;height:26px}.bz-generated-wrap{min-width:0}.bz-generated-wrap .regenerate-bar button svg{width:13px;height:13px}.bz-generated-wrap .summary-hero h3{overflow-wrap:anywhere}.bz-generated-wrap .formula-card span{overflow-wrap:anywhere}.bz-generated-wrap .review-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bz-exam-options{margin:2px 0 0;padding-left:22px;color:var(--ink,#0f1110);font-size:13px;line-height:1.68}.bz-exam-options li{margin:3px 0}.bz-answer-line{color:#5f8c00!important;font-weight:800}.bz-review-board{padding:0}.do-exercise-btn{border:0}.do-exercise-btn span{line-height:1}" +
+      "@media(max-width:720px){.bz-confirm-actions{flex-direction:column-reverse}.bz-confirm-actions button{width:100%}.bz-confirm-audio{align-items:flex-start;flex-direction:column}.bz-confirm-audio audio{width:100%}.bz-asr-old-recorder{min-height:calc(100vh - 120px)}.bz-asr-old-recorder .live-transcript{max-height:38vh}}";
     document.head.appendChild(style);
     return;
     style.textContent =

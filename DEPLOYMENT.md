@@ -112,6 +112,67 @@ docker compose restart caddy
 /opt/100waytoai/asr-realtime-sessions
 ```
 
+录音结束后的课堂音频记录走真实服务端接口：
+
+```text
+POST /api/class-audio-records
+GET  /api/class-audio-records?userId=baizhi_student_web
+PATCH /api/class-audio-records?id=audio_xxx
+POST /api/class-audio-tasks
+```
+
+`/api/class-audio-tasks` 由前端按钮触发，`task=transcribe` 会读取服务端已保存的音频并调用阿里云 Fun-ASR 文件转写，开启 `diarization_enabled` 后把 `speaker_id` 写入说话人分离 `segments`；`task=summary|quiz|review` 会读取同一条记录的转写文本，分别调用三个扣子 Workflow 生成结构化产物并写回 `artifacts` 字段。
+
+该接口由 `realtime-asr/server.js` 提供。生产环境配置 PostgreSQL 后会自动建表并持久化到数据库：
+
+```bash
+CLASS_AUDIO_DATABASE_URL=postgres://user:password@host:5432/baizhi
+CLASS_AUDIO_DATABASE_SSL=false
+```
+
+数据库表：
+
+- `class_audio_records`：课堂音频记录表，字段包含 `user_id`、课堂信息、状态流转、精细转写文本、说话人分离 `segments`、处理状态、结构化产物 `artifacts` 等。
+- `class_audio_files`：原始录音二进制表，`record_id` 关联 `class_audio_records.id`，音频以 `bytea` 保存。
+
+如果没有配置数据库连接串，会回退到文件表，方便本地开发：
+
+```bash
+CLASS_AUDIO_DATA_DIR=/opt/100waytoai/class-audio-records
+CLASS_AUDIO_MAX_BYTES=104857600
+```
+
+文件表模式下服务器目录会保存：
+
+- `records.json`：课堂音频记录表，字段包含 `userId`、课堂信息、状态流转、精细转写文本、说话人分离 segments。
+- `audio/`：原始录音文件。
+
+Docker 部署时安装脚本会把数据库连接传入容器；若未配置数据库，也会把文件表目录挂载到 `/data/class-audio-records`。如果部署到 Vercel Serverless，必须配置 `CLASS_AUDIO_DATABASE_URL` 或 `DATABASE_URL`，否则 Serverless 文件系统不保证长期持久化。
+
+课堂音频任务还需要把阿里云 Fun-ASR 和 Coze Workflow 的配置传入 realtime-asr 容器：
+
+```bash
+ASR_PROVIDER=aliyun_fun_asr
+DASHSCOPE_API_KEY=你的DashScope API Key
+DASHSCOPE_API_BASE=https://dashscope.aliyuncs.com/api/v1
+ALIYUN_FUN_ASR_MODEL=fun-asr
+ALIYUN_FUN_ASR_DIARIZATION=true
+CLASS_AUDIO_PUBLIC_BASE_URL=https://www.100waytoai.com
+COZE_API_TOKEN=你的扣子访问令牌
+COZE_AGENT_PROVIDER=coze_code
+COZE_CODE_BASE_URL=https://9x8p8tz864.coze.site
+COZE_CODE_PROJECT_ID=7647425305157615662
+COZE_BOT_ID=
+COZE_API_BASE=https://api.coze.cn
+COZE_WORKFLOW_SUMMARY_ID=
+COZE_WORKFLOW_QUIZ_ID=
+COZE_WORKFLOW_REVIEW_ID=
+```
+
+当前推荐模式是 `COZE_AGENT_PROVIDER=coze_code`：百智后端统一调用你在扣子 Code 部署的「小智学习智能体」API 服务，由同一个 Agent 内部按 `intent=summary|quiz|review|chat` 调用对应 skill。旧的三个 Workflow ID 仍保留为兼容模式；只有显式设置 `COZE_AGENT_PROVIDER=workflow` 时才会强制走 `COZE_WORKFLOW_*_ID`。
+
+阿里云 Fun-ASR 文件转写要求音频文件 URL 可被公网访问。当前可直接使用 `/api/class-audio-records?id=xxx&asset=audio` 加 `CLASS_AUDIO_PUBLIC_BASE_URL` 组合成公网 URL；更长期的生产方案建议把录音上传到 OSS，再把 OSS URL 写入 `record.audioUrl`。开启说话人分离时，音频建议控制在 2 小时以内，并使用单声道音频。
+
 部署前需要在阿里云智能语音交互控制台创建项目并拿到 AppKey。生产环境推荐配置 AccessKey，由服务端动态获取 Token：
 
 ```bash
@@ -183,7 +244,7 @@ HTTPS 建议使用平台自动证书，或在服务器上使用 Certbot / 宝塔
 
 ## 当前限制
 
-- 基础页面仍是前端演示版，数据不会真实写入数据库。
-- 小智 Agent API 代理已经加入，但需要部署服务端函数并配置 `COZE_API_TOKEN` 后才会真实工作。
+- 登录、充值、购买、发布等仍是本地演示流程；课堂音频记录、服务端转写任务和小智 Agent 结构化产物已经接入真实后端接口。
+- 小智 Agent 需要部署服务端函数或 realtime-asr 服务，并配置 `COZE_API_TOKEN` 后才会真实工作。
 - 登录验证码、充值、购买、发布等都是本地演示流程。
 - 页面使用了 Google Fonts；如果目标用户网络无法访问 Google Fonts，会自动回退到系统字体。
