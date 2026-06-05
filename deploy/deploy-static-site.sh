@@ -7,6 +7,7 @@ SERVER_PORT="${SERVER_PORT:-22}"
 SERVER_KEY="${SERVER_KEY:-}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/100waytoai/baizhi-static}"
 DEPLOY_METHOD="${DEPLOY_METHOD:-tar}"
+BUILD_COMMAND="${BUILD_COMMAND:-npm run build}"
 SSH_CMD=(ssh -p "$SERVER_PORT")
 
 if [[ -n "$SERVER_KEY" ]]; then
@@ -15,22 +16,27 @@ fi
 
 cd "$(dirname "$0")/.."
 
-rm -rf dist/static-site
-mkdir -p dist/static-site
-cp index.html baizhi-students-home-v3.html baizhi-students-home-v3-interaction.html asr-recorder.js favicon.svg site.webmanifest robots.txt vercel.json netlify.toml _headers _redirects .htaccess dist/static-site/
-cp -R api dist/static-site/
+echo "Building production static assets with: $BUILD_COMMAND"
+$BUILD_COMMAND
+
+if [[ ! -f dist/index.html ]]; then
+  echo "Expected dist/index.html after build, but it was not found." >&2
+  exit 1
+fi
 
 if [[ "$DEPLOY_METHOD" == "rsync" ]] && command -v rsync >/dev/null 2>&1; then
   "${SSH_CMD[@]}" "$SERVER_USER@$SERVER_HOST" "mkdir -p '$REMOTE_DIR'"
-  rsync -az --delete -e "$(printf '%q ' "${SSH_CMD[@]}")" dist/static-site/ "$SERVER_USER@$SERVER_HOST:$REMOTE_DIR/"
+  rsync -az --delete -e "$(printf '%q ' "${SSH_CMD[@]}")" dist/ "$SERVER_USER@$SERVER_HOST:$REMOTE_DIR/"
 else
-  COPYFILE_DISABLE=1 tar -C dist/static-site --format ustar --no-mac-metadata -czf - . | "${SSH_CMD[@]}" "$SERVER_USER@$SERVER_HOST" "mkdir -p '$REMOTE_DIR' && find '$REMOTE_DIR' -mindepth 1 -maxdepth 1 -exec rm -rf {} + && tar -C '$REMOTE_DIR' -xzf -"
+  COPYFILE_DISABLE=1 tar -C dist --format ustar --no-mac-metadata -czf - . | "${SSH_CMD[@]}" "$SERVER_USER@$SERVER_HOST" "mkdir -p '$REMOTE_DIR' && find '$REMOTE_DIR' -mindepth 1 -maxdepth 1 -exec rm -rf {} + && tar -C '$REMOTE_DIR' -xzf -"
 fi
 
 cat <<EOF
 Static files synced to $SERVER_USER@$SERVER_HOST:$REMOTE_DIR
 
-If Caddy is already serving www.100waytoai.com, point that site block to:
+For Docker Caddy, make sure $REMOTE_DIR is mounted to /srv/baizhi-students.
+
+If Caddy is serving files directly on the host, point that site block to:
   root * $REMOTE_DIR
   try_files {path} /index.html
   file_server

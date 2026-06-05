@@ -104,6 +104,14 @@ Current production publish directory:
 dist
 ```
 
+For the self-hosted `100waytoai.com` deployment, use:
+
+```bash
+./deploy/deploy-static-site.sh
+```
+
+That script must publish the Vite-built `dist/` directory, not legacy static HTML files.
+
 ## 5. Request Format
 
 When possible, describe requested work using:
@@ -216,4 +224,3 @@ Before merging to `main`, confirm:
 ```text
 Source first, build generated; demo may mock, production may fallback; old HTML is not the main development entry.
 ```
-

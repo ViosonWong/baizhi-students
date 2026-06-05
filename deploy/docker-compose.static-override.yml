@@ -2,6 +2,6 @@ services:
   caddy:
     volumes:
       - ./deploy/Caddyfile.100waytoai.docker:/etc/caddy/Caddyfile:ro
-      - ./baizhi-static:/srv/baizhi-students:ro
+      - ${BAIZHI_STATIC_DIR:-/opt/100waytoai/baizhi-static}:/srv/baizhi-students:ro
       - caddy_data:/data
       - caddy_config:/config
