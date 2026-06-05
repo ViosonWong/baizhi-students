@@ -1,3 +1,4 @@
+
 (function initXiaoZhi() {
   var API_URL  = '/api/coze-chat';
   var CONV_KEY = 'xz_conversations';
