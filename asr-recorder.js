@@ -48,6 +48,7 @@
   };
 
   injectStyle();
+  cleanupPreviewAudioRecords();
   document.addEventListener("click", interceptRecordClicks, true);
   document.addEventListener("click", renderAudioRecordsAfterAiNoteClick, true);
   document.addEventListener("click", renderMarketAfterKnowledgeClick, true);
@@ -1074,6 +1075,39 @@
     }
   }
 
+  function cleanupPreviewAudioRecords() {
+    try {
+      var records = JSON.parse(localStorage.getItem(AUDIO_RECORD_KEY) || "[]");
+      if (!Array.isArray(records) || !records.length) {
+        return;
+      }
+
+      var cleaned = records.filter(function(record) {
+        return !isCodexPreviewRecord(record);
+      });
+
+      if (cleaned.length !== records.length) {
+        localStorage.setItem(AUDIO_RECORD_KEY, JSON.stringify(cleaned.slice(0, 100)));
+      }
+    } catch {
+    }
+  }
+
+  function isCodexPreviewRecord(record) {
+    if (!record || !record.id) {
+      return false;
+    }
+
+    var id = String(record.id || "");
+    var title = String(record.title || "");
+    return id === "audio-preview-soul-class" ||
+      id === "audio-demo-tabs" ||
+      id === "audio-demo-mobile" ||
+      id === "audio-status-flow-preview" ||
+      id === "audio-rollback-check" ||
+      title === "死亡哲学课堂重点";
+  }
+
   function loadAudioRecords() {
     try {
       var value = loadAllAudioRecords();
@@ -1184,6 +1218,88 @@
     }).join("") + '</div>';
   }
 
+  function lessonMetaLineHtml(record) {
+    var meta = (record && record.meta) || {};
+    var items = [
+      ["学校", meta.school],
+      ["教室", meta.classroom],
+      ["老师", meta.teacher],
+    ].filter(function(item) {
+      return String(item[1] || "").trim();
+    });
+
+    if (!items.length) {
+      return "";
+    }
+
+    return '<p class="bz-lesson-meta-line">' + items.map(function(item) {
+      return esc(item[0] + "：" + item[1]);
+    }).join(" · ") + '</p>';
+  }
+
+  function simulateSummaryStored(recordId) {
+    var record = loadAudioRecords().find(function(item) {
+      return item.id === recordId;
+    });
+
+    if (!record || audioRecordDisplayStatus(record) === "已入库") {
+      return;
+    }
+
+    var processing = Object.assign({}, record.processing, { summary: "done" });
+    updateAudioRecord(recordId, {
+      status: "stored",
+      statusLabel: "已入库",
+      stageIndex: processingStages().length - 1,
+      processing: processing,
+      artifacts: Object.assign({}, record.artifacts || {}, {
+        summary: record.artifacts && record.artifacts.summary ? record.artifacts.summary : previewSummaryArtifact(record),
+      }),
+    });
+    renderAudioRecordsPanel(recordId);
+  }
+
+  function previewSummaryArtifact(record) {
+    var lines = splitTranscriptLines(record && (record.transcript || record.content || "")).slice(0, 4);
+    var title = displayRecordTitle(record);
+
+    return {
+      title: title,
+      overview: lines[0] || "小智已根据课堂录音整理出本节课的重点内容。",
+      keyPoints: lines.length ? lines.map(function(line, index) {
+        return {
+          time: formatClock(index * 90),
+          title: summaryPointTitle(line),
+          detail: summaryPointDetail(line),
+        };
+      }) : [{
+        time: "00:00:00",
+        title: title,
+        detail: "课堂录音已入库，可继续生成测试题集和复习建议。",
+      }],
+      timeline: lines.slice(0, 2).map(function(line, index) {
+        return {
+          time: formatClock(index * 90),
+          speaker: defaultSpeakerLabel(),
+          text: line,
+        };
+      }),
+      openQuestions: ["这节课最容易混淆的概念是什么？", "课后应该优先复习哪一部分？"],
+    };
+  }
+
+  function summaryPointTitle(text) {
+    var value = String(text || "").trim();
+    var split = value.split(/[：:。；;]/)[0] || value;
+    return split.length <= 18 ? split : split.slice(0, 18);
+  }
+
+  function summaryPointDetail(text) {
+    var value = String(text || "").trim();
+    var detail = value.replace(/^[^：:。；;]{1,24}[：:]/, "").trim() || value;
+    return detail.length <= 96 ? detail : detail.slice(0, 96) + "...";
+  }
+
   function audioPlayerHtml(record) {
     var duration = Math.round((record && record.duration) || 0);
     return '<div class="audio-player bz-audio-player">' +
@@ -1242,14 +1358,14 @@
     }
 
     var records = sortAudioRecords(loadAudioRecords());
-    var existing = prepareAudioRecordListHost(host);
-    updateAudioRecordTabCount(host, records.length);
-
     if (!records.length) {
-      existing.innerHTML = '<div class="notes-purchased-empty bz-audio-list-empty"><p>还没有真实课堂录音</p><small>从今日课堂录音后，会按时间自动归档在这里。</small></div>';
-      renderAudioEmptyDetail();
+      restoreNativeNoteList(host);
       return;
     }
+
+    var existing = prepareAudioRecordListHost(host);
+    updateAudioRecordTabCount(host, records.length);
+    showAudioRecordListTab(host);
 
     var selectedId = activeId || records[0].id;
     var groups = groupAudioRecordsByPeriod(records);
@@ -1317,10 +1433,91 @@
     }
 
     mockLists.slice(1).forEach(function(list) {
-      list.remove();
+      list.setAttribute("data-bz-native-note-list", "mine");
+      list.style.display = "none";
     });
 
+    bindNotesLibraryTabs(host, existing);
     return existing;
+  }
+
+  function bindNotesLibraryTabs(host, panel) {
+    var tabs = host.querySelector(".notes-lib-tabs");
+    if (!tabs || tabs.getAttribute("data-bz-tabs-bound") === "true") {
+      return;
+    }
+
+    tabs.setAttribute("data-bz-tabs-bound", "true");
+    var buttons = tabs.querySelectorAll("button");
+    if (buttons[0]) {
+      buttons[0].addEventListener("click", function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        showAudioRecordListTab(host);
+        renderAudioRecordsPanel();
+      }, true);
+    }
+
+    if (buttons[1]) {
+      buttons[1].addEventListener("click", function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        showNativeMineNoteTab(host, panel);
+      }, true);
+    }
+  }
+
+  function showAudioRecordListTab(host) {
+    var tabs = host.querySelector(".notes-lib-tabs");
+    var buttons = tabs ? tabs.querySelectorAll("button") : [];
+    if (buttons[0]) buttons[0].classList.add("active");
+    if (buttons[1]) buttons[1].classList.remove("active");
+
+    var panel = document.getElementById("bz-audio-records-panel");
+    if (panel) {
+      panel.style.display = "";
+    }
+
+    host.querySelectorAll("[data-bz-native-note-list='mine']").forEach(function(list) {
+      list.style.display = "none";
+    });
+  }
+
+  function showNativeMineNoteTab(host, panel) {
+    var tabs = host.querySelector(".notes-lib-tabs");
+    var buttons = tabs ? tabs.querySelectorAll("button") : [];
+    if (buttons[0]) buttons[0].classList.remove("active");
+    if (buttons[1]) buttons[1].classList.add("active");
+    if (panel) panel.style.display = "none";
+
+    var nativeLists = host.querySelectorAll("[data-bz-native-note-list='mine']");
+    if (!nativeLists.length) {
+      var fallback = document.createElement("div");
+      fallback.className = "file-list";
+      fallback.setAttribute("data-bz-native-note-list", "mine");
+      fallback.innerHTML = '<div class="notes-purchased-empty"><p>暂无我的笔记</p><small>你保存或购买的笔记会出现在这里。</small></div>';
+      host.insertBefore(fallback, host.querySelector(".notes-asset-strip") || null);
+      nativeLists = host.querySelectorAll("[data-bz-native-note-list='mine']");
+    }
+
+    nativeLists.forEach(function(list) {
+      list.style.display = "";
+    });
+    renderAudioEmptyDetail();
+  }
+
+  function restoreNativeNoteList(host) {
+    var panel = document.getElementById("bz-audio-records-panel");
+    if (panel) {
+      panel.removeAttribute("id");
+      panel.classList.remove("bz-audio-records-panel");
+      panel.style.display = "";
+    }
+
+    var tabs = host.querySelector(".notes-lib-tabs");
+    var buttons = tabs ? tabs.querySelectorAll("button") : [];
+    if (buttons[0]) buttons[0].classList.add("active");
+    if (buttons[1]) buttons[1].classList.remove("active");
   }
 
   function updateAudioRecordTabCount(host, count) {
@@ -1419,13 +1616,15 @@
     var tab = activeDetailTab || "transcript";
     detail.innerHTML =
       '<div class="note-detail-head">' +
-        '<div class="bz-note-title-block"><h2>' + esc(displayRecordTitle(record)) + '</h2><p>' + esc((record.meta && record.meta.course) || "课堂录音") + ' · ' + esc(formatClock(Math.round(record.duration || 0))) + '</p>' + lessonMetaChipsHtml(record) + '</div>' +
+        '<div class="bz-note-title-block"><h2>' + esc(displayRecordTitle(record)) + '</h2><p>' + esc((record.meta && record.meta.course) || "课堂录音") + ' · ' + esc(formatClock(Math.round(record.duration || 0))) + '</p>' + lessonMetaLineHtml(record) + '</div>' +
         '<button class="primary-action bz-publish-entry" type="button" data-bz-publish-record="' + esc(record.id) + '">' + marketIcon() + '<span>发布到知识广场</span></button>' +
       '</div>' +
       audioPlayerHtml(record) +
       '<div class="note-tabs">' +
         detailTabButton("transcript", "转译文本", tab) +
         detailTabButton("summary", "智能总结", tab) +
+        detailTabButton("highlights", "重点速览", tab) +
+        detailTabButton("materials", "课堂资料", tab) +
         detailTabButton("quiz", "测试题集", tab) +
         detailTabButton("review", "复习建议", tab) +
       '</div>' +
@@ -1434,6 +1633,9 @@
     detail.querySelectorAll("[data-bz-detail-tab]").forEach(function(button) {
       button.addEventListener("click", function() {
         activeDetailTab = button.getAttribute("data-bz-detail-tab") || "transcript";
+        if (activeDetailTab === "summary") {
+          simulateSummaryStored(recordId);
+        }
         renderAudioRecordDetail(recordId);
       });
     });
@@ -1833,6 +2035,14 @@
   }
 
   function detailTabHtml(record, text, tab) {
+    if (tab === "highlights") {
+      return highlightsDetailHtml(record);
+    }
+
+    if (tab === "materials") {
+      return classroomMaterialsDetailHtml(record);
+    }
+
     if (tab === "summary" || tab === "quiz" || tab === "review") {
       return artifactPanelHtml(record, tab);
     }
@@ -2329,6 +2539,167 @@
       (copy.busy ? '<span class="bz-loading-dots" aria-hidden="true"><i></i><i></i><i></i></span>' : '') +
       button +
     '</div>';
+  }
+
+  function highlightsDetailHtml(record) {
+    var items = overviewItemsForRecord(record).slice(0, 8);
+    if (!items.length) {
+      return '<p class="bz-audio-empty">精细转写完成后，小智会在这里整理课堂重点速览。</p>';
+    }
+
+    return '<div class="speaker-list bz-audio-speaker-list bz-key-overview-list">' +
+      '<div class="bz-overview-title"><span></span><strong>考点重点</strong></div>' +
+      items.map(function(item) {
+        var detail = item.detail || "";
+        return '<article>' +
+          (item.time ? '<time>' + esc(item.time) + '</time>' : '') +
+          '<p><strong>' + esc((item.title || "课堂重点") + (detail ? "：" : "")) + '</strong>' + esc(detail) + '</p>' +
+        '</article>';
+      }).join("") +
+    '</div>';
+  }
+
+  function classroomMaterialsDetailHtml(record) {
+    var items = classroomMaterialItems(record).slice(0, 6);
+    if (!items.length) {
+      return '<p class="bz-audio-empty">课堂资料会在录音结束并完成整理后显示在这里。</p>';
+    }
+
+    return '<div class="speaker-list bz-audio-speaker-list bz-material-list">' +
+      items.map(function(item, index) {
+        var description = item.description || item.kind || "课堂过程中沉淀的资料内容。";
+        return '<article>' +
+          '<div class="bz-material-meta">' + imageIcon() + '<time>' + esc(item.time || formatClock(index * 150)) + '</time></div>' +
+          materialThumbHtml(item, index) +
+          '<p><strong>' + esc((item.title || "课堂资料") + (description ? "：" : "")) + '</strong>' + esc(description) + '</p>' +
+        '</article>';
+      }).join("") +
+    '</div>';
+  }
+
+  function overviewItemsForRecord(record) {
+    var summary = record && record.artifacts && record.artifacts.summary ? record.artifacts.summary : {};
+    var explicit = []
+      .concat(toArray(summary.highlights))
+      .concat(toArray(summary.keyHighlights))
+      .concat(toArray(summary.quickOverview))
+      .concat(toArray(summary.keyPoints))
+      .map(normalizeOverviewItem).filter(function(item) {
+      return item.title || item.detail;
+    });
+
+    if (explicit.length) {
+      return explicit;
+    }
+
+    var segments = normalizeSpeakerSegments(record && record.segments ? record.segments : []);
+    if (segments.length) {
+      return segments.map(function(segment, index) {
+        return normalizeOverviewItem({
+          time: segment.start === null ? "" : formatClock(Math.round(segment.start)),
+          text: segment.text,
+        }, index);
+      }).filter(function(item) {
+        return item.title || item.detail;
+      });
+    }
+
+    return splitTranscriptLines(record && (record.transcript || record.content || "")).map(function(line, index) {
+      return normalizeOverviewItem({
+        time: formatClock(index * 90),
+        text: line,
+      }, index);
+    });
+  }
+
+  function normalizeOverviewItem(item, index) {
+    if (typeof item === "string") {
+      return {
+        time: index === undefined ? "" : formatClock(index * 90),
+        title: summaryPointTitle(item),
+        detail: summaryPointDetail(item),
+      };
+    }
+
+    item = item || {};
+    var source = item.detail || item.summary || item.text || item.content || item.evidence || item.title || "";
+    var title = item.title || item.topic || item.name || summaryPointTitle(source);
+    var detail = item.detail || item.summary || item.text || item.content || item.evidence || "";
+    var time = item.time || item.timestamp || (typeof item.start === "number" ? formatClock(Math.round(item.start)) : "");
+
+    return {
+      time: time,
+      title: title,
+      detail: detail && detail !== title ? detail : summaryPointDetail(source),
+    };
+  }
+
+  function classroomMaterialItems(record) {
+    var artifacts = (record && record.artifacts) || {};
+    var raw = []
+      .concat(extractMaterialValues(artifacts.materials))
+      .concat(extractMaterialValues(artifacts.classroomMaterials))
+      .concat(extractMaterialValues(artifacts.slides))
+      .concat(extractMaterialValues(artifacts.assets))
+      .concat(extractMaterialValues(record.materials))
+      .concat(extractMaterialValues(record.assets));
+    var explicit = raw.map(normalizeClassroomMaterial).filter(function(item) {
+      return item.title || item.image || item.description;
+    });
+
+    if (explicit.length) {
+      return explicit;
+    }
+
+    return overviewItemsForRecord(record).slice(0, 3).map(function(item, index) {
+      return {
+        time: item.time || formatClock(index * 150 + 160),
+        title: item.title || ("课堂资料 " + (index + 1)),
+        description: item.detail || "根据课堂重点自动整理出的资料卡片。",
+        kind: index === 0 ? "课件截图" : "板书资料",
+      };
+    });
+  }
+
+  function extractMaterialValues(value) {
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (value && typeof value === "object") {
+      return toArray(value.items || value.slides || value.images || value.materials || value.resources || value.files || value.cards || value);
+    }
+
+    return toArray(value);
+  }
+
+  function normalizeClassroomMaterial(item, index) {
+    if (typeof item === "string") {
+      return {
+        time: formatClock(index * 150 + 160),
+        title: "课堂资料 " + (index + 1),
+        description: item,
+      };
+    }
+
+    item = item || {};
+    return {
+      time: item.time || item.timestamp || (typeof item.start === "number" ? formatClock(Math.round(item.start)) : formatClock(index * 150 + 160)),
+      title: item.title || item.name || item.caption || item.type || ("课堂资料 " + (index + 1)),
+      description: item.description || item.summary || item.text || item.content || item.note || "",
+      kind: item.kind || item.type || "",
+      image: item.image || item.imageUrl || item.thumbnail || item.thumbnailUrl || item.url || item.src || "",
+    };
+  }
+
+  function materialThumbHtml(item, index) {
+    if (item.image) {
+      return '<figure class="bz-material-thumb"><img src="' + esc(item.image) + '" alt="' + esc(item.title || "课堂资料") + '"></figure>';
+    }
+
+    return '<figure class="bz-material-thumb bz-material-thumb-fallback">' +
+      '<div><small>' + esc(item.kind || "课堂资料") + '</small><strong>' + esc(item.title || ("课堂资料 " + (index + 1))) + '</strong><span></span><span></span><span></span></div>' +
+    '</figure>';
   }
 
   function transcriptDetailHtml(record, fallbackText) {
@@ -2966,7 +3337,7 @@
       ".bz-asr-old-recorder .recorder-actions button:disabled{opacity:.45;cursor:not-allowed}" +
       ".bz-asr-old-recorder .primary-action[data-bz-asr-ask]{margin-left:8px}" +
       ".bz-confirm-overlay{z-index:9999}.bz-confirm-shell{max-height:calc(100vh - 48px);overflow:auto}.bz-confirm-audio{display:flex;align-items:center;gap:10px;color:var(--muted,#6b7280);font-size:12px;font-weight:700}.bz-confirm-audio strong{color:var(--ink,#0f1110);font-variant-numeric:tabular-nums}.bz-confirm-audio audio{width:220px;height:32px}.bz-confirm-actions button:disabled{opacity:.55;cursor:not-allowed}.bz-confirm-error{padding:10px 12px;border-radius:12px;background:#fff2f0;color:#b42318;font-size:12px;font-weight:700;line-height:1.5}" +
-      ".bz-audio-records-panel{position:relative;border-bottom:1px solid var(--line,#e5e7eb);padding-bottom:14px;margin-bottom:10px}.bz-audio-record-card{position:relative}.bz-audio-record-card .mini-note{padding-right:42px}.bz-audio-record-card .mini-note strong{overflow-wrap:anywhere}.bz-audio-delete{position:absolute;top:16px;right:16px;z-index:3;display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;background:#0f11100d;color:#737a76;opacity:0;transform:translateY(-3px) scale(.94);cursor:pointer;transition:opacity .18s ease,transform .18s ease,background .18s ease,color .18s ease}.bz-audio-delete svg{width:17px;height:17px}.bz-audio-record-card:hover .bz-audio-delete,.bz-audio-record-card:focus-within .bz-audio-delete{opacity:1;transform:translateY(0) scale(1)}.bz-audio-delete:hover{background:#0f1110;color:#fff}.bz-audio-list-toast{position:absolute;left:18px;right:18px;bottom:8px;z-index:5;padding:9px 12px;border-radius:12px;background:#fff2f0;color:#b42318;font-size:12px;font-weight:800;box-shadow:0 10px 24px -14px #0f111059}.bz-audio-player{flex-shrink:0}.bz-audio-transcript{overflow:auto}.bz-note-title-block{min-width:0;flex:1}.bz-lesson-meta-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;max-width:100%}.bz-lesson-meta-chips span{display:inline-flex;align-items:center;gap:5px;max-width:220px;padding:5px 10px;border:1px solid rgba(168,212,0,.36);border-radius:999px;background:#f8ffdb;color:#4e6a00;font-size:12px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bz-lesson-meta-chips strong{color:#6b7400;font-weight:850}.bz-audio-speaker-list p strong{display:inline-block;margin-right:10px;color:#5f8c00;font-weight:800;white-space:nowrap}.bz-audio-empty{padding:18px;border:1px dashed var(--line,#e5e7eb);border-radius:14px;color:var(--muted,#6b7280)}" +
+      ".bz-audio-records-panel{position:relative;border-bottom:1px solid var(--line,#e5e7eb);padding-bottom:14px;margin-bottom:10px}.bz-audio-record-card{position:relative}.bz-audio-record-card .mini-note{padding-right:42px}.bz-audio-record-card .mini-note strong{overflow-wrap:anywhere}.bz-audio-delete{position:absolute;top:16px;right:16px;z-index:3;display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;background:#0f11100d;color:#737a76;opacity:0;transform:translateY(-3px) scale(.94);cursor:pointer;transition:opacity .18s ease,transform .18s ease,background .18s ease,color .18s ease}.bz-audio-delete svg{width:17px;height:17px}.bz-audio-record-card:hover .bz-audio-delete,.bz-audio-record-card:focus-within .bz-audio-delete{opacity:1;transform:translateY(0) scale(1)}.bz-audio-delete:hover{background:#0f1110;color:#fff}.bz-audio-list-toast{position:absolute;left:18px;right:18px;bottom:8px;z-index:5;padding:9px 12px;border-radius:12px;background:#fff2f0;color:#b42318;font-size:12px;font-weight:800;box-shadow:0 10px 24px -14px #0f111059}.bz-audio-player{flex-shrink:0}.bz-audio-transcript{overflow:auto}.bz-note-title-block{min-width:0;flex:1}.bz-lesson-meta-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;max-width:100%}.bz-lesson-meta-chips span{display:inline-flex;align-items:center;gap:5px;max-width:220px;padding:5px 10px;border:1px solid rgba(168,212,0,.36);border-radius:999px;background:#f8ffdb;color:#4e6a00;font-size:12px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bz-lesson-meta-chips strong{color:#6b7400;font-weight:850}.bz-audio-speaker-list p strong{display:inline-block;margin-right:10px;color:#5f8c00;font-weight:800;white-space:nowrap}.bz-audio-empty{padding:18px;border:1px dashed var(--line,#e5e7eb);border-radius:14px;color:var(--muted,#6b7280)}.bz-overview-title{display:flex;align-items:center;gap:9px;padding:2px 0 12px;color:var(--ink,#0f1110);font-size:16px;font-weight:850}.bz-overview-title span{width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:11px solid #d92d20;filter:drop-shadow(0 1px 1px rgba(217,45,32,.22))}.bz-key-overview-list article time{color:#5aa7df;text-decoration:underline;text-underline-offset:2px;font-size:14px}.bz-key-overview-list article p{font-size:15px;font-weight:650}.bz-key-overview-list article p:before{content:'•';display:inline-block;margin-right:10px;color:var(--ink,#0f1110);font-weight:900}.bz-key-overview-list article p strong{color:var(--ink,#0f1110);font-weight:850}.bz-material-list article{gap:12px}.bz-material-meta{display:flex;align-items:center;gap:10px;color:var(--hint,#9aa0a6);font-size:15px;font-weight:800}.bz-material-meta svg{width:17px;height:17px}.bz-material-meta time{font-size:15px;color:var(--hint,#9aa0a6)}.bz-material-thumb{width:min(520px,100%);aspect-ratio:16/9;margin:0;border:1px solid var(--line-soft,#eceff0);border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 12px 30px -24px rgba(15,17,16,.35)}.bz-material-thumb img{display:block;width:100%;height:100%;object-fit:cover}.bz-material-thumb-fallback{display:grid;place-items:center;background:linear-gradient(180deg,#fff,#f7f8f5)}.bz-material-thumb-fallback>div{width:78%;display:grid;gap:9px}.bz-material-thumb-fallback small{color:#5f8c00;font-size:11px;font-weight:850}.bz-material-thumb-fallback strong{color:var(--ink,#0f1110);font-size:18px;font-weight:850;line-height:1.25}.bz-material-thumb-fallback span{display:block;height:8px;border-radius:999px;background:#0f111012}.bz-material-thumb-fallback span:nth-child(4){width:74%}.bz-material-thumb-fallback span:nth-child(5){width:52%;background:#a8d40066}.bz-material-list article p strong{color:var(--ink,#0f1110)}" +
       ".bz-publish-entry{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}.bz-publish-entry svg{width:16px;height:16px}.bz-publish-backdrop{z-index:9999}.bz-publish-modal{max-height:calc(100vh - 48px);overflow:auto}.bz-publish-modal .primary-action:disabled{opacity:.45;cursor:not-allowed}" +
       ".bz-online-empty.is-error p{color:#b42318}.bz-online-empty.is-loading{min-height:380px}.bz-online-empty.is-loading .note-empty-icon{animation:bzArtifactIconFloat 1.8s ease-in-out infinite}.bz-online-empty.is-loading .note-empty-icon svg{animation:bzArtifactIconTilt 1.8s ease-in-out infinite}.bz-loading-dots{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:18px;margin-top:4px}.bz-loading-dots i{display:block;width:7px;height:7px;border-radius:50%;background:#9aa0a6;opacity:.42;animation:bzArtifactDot 1.05s ease-in-out infinite}.bz-loading-dots i:nth-child(2){animation-delay:.14s}.bz-loading-dots i:nth-child(3){animation-delay:.28s}@keyframes bzArtifactIconFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}@keyframes bzArtifactIconTilt{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(4deg)}}@keyframes bzArtifactDot{0%,80%,100%{transform:translateY(0);opacity:.34}40%{transform:translateY(-5px);opacity:1}}" +
       ".note-empty-action svg{width:16px;height:16px}.note-empty-icon svg{width:26px;height:26px}.bz-generated-wrap{min-width:0}.bz-generated-wrap .regenerate-bar button svg{width:13px;height:13px}.bz-generated-wrap .summary-hero h3{overflow-wrap:anywhere}.bz-generated-wrap .formula-card span{overflow-wrap:anywhere}.bz-generated-wrap .review-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bz-high-value-quotes{display:grid;gap:12px;padding:18px;border:1px solid rgba(168,212,0,.38);border-radius:18px;background:linear-gradient(180deg,#ffffff,#fbfff0);box-shadow:0 10px 28px -22px rgba(95,140,0,.55)}.bz-high-value-quotes header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.bz-high-value-quotes header span{font-size:16px;font-weight:850;letter-spacing:0;color:var(--ink,#0f1110)}.bz-high-value-quotes header strong{font-size:12px;font-weight:800;color:#6aa800;white-space:nowrap}.bz-high-value-quotes>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.bz-high-value-quotes article{min-width:0;padding:12px 13px;border-radius:14px;background:#fff;border:1px solid rgba(15,17,16,.08)}.bz-high-value-quotes small{display:block;margin-bottom:7px;color:#7d981e;font-size:11px;font-weight:800}.bz-high-value-quotes p{margin:0;color:var(--ink,#0f1110);font-size:13px;font-weight:700;line-height:1.65;overflow-wrap:anywhere}.bz-high-value-quotes em{display:block;margin-top:8px;color:#8a918c;font-size:11.5px;font-style:normal;line-height:1.45}.bz-exam-options{margin:2px 0 0;padding-left:22px;color:var(--ink,#0f1110);font-size:13px;line-height:1.68}.bz-exam-options li{margin:3px 0}.bz-answer-line{color:#5f8c00!important;font-weight:800}.bz-review-board{padding:0}.do-exercise-btn{border:0}.do-exercise-btn span{line-height:1}" +
