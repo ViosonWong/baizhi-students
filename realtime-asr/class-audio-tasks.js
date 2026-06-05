@@ -146,9 +146,12 @@ async function runArtifactTask(store, record, task, userId) {
 
   try {
     const result = await generateLearningArtifact({ task, record, userId });
+    const artifact = task === "summary"
+      ? ensureSummaryHighValueQuotes(result.artifact, record)
+      : result.artifact;
     record.artifacts = {
       ...normalizeObject(record.artifacts),
-      [task]: result.artifact,
+      [task]: artifact,
     };
     record.processing = {
       ...normalizeObject(record.processing),
@@ -160,7 +163,7 @@ async function runArtifactTask(store, record, task, userId) {
       },
     };
     if (task === "summary") {
-      const summaryTitle = normalizeText(result.artifact && result.artifact.title);
+      const summaryTitle = normalizeText(artifact && artifact.title);
       if (summaryTitle) {
         record.title = summaryTitle;
       }
@@ -173,7 +176,7 @@ async function runArtifactTask(store, record, task, userId) {
 
     return {
       task,
-      artifact: result.artifact,
+      artifact,
       record: publicRecord(record),
       coze: result.coze,
     };
@@ -194,6 +197,96 @@ function sendTaskError(record, task, message) {
       [task]: message,
     },
   };
+}
+
+function ensureSummaryHighValueQuotes(artifact, record) {
+  const summary = normalizeObject(artifact);
+  const existing = Array.isArray(summary.highValueQuotes)
+    ? summary.highValueQuotes.map(normalizeHighValueQuote).filter((item) => item.quote)
+    : [];
+
+  if (existing.length) {
+    return {
+      ...summary,
+      highValueQuotes: existing.slice(0, 3),
+    };
+  }
+
+  return {
+    ...summary,
+    highValueQuotes: inferHighValueQuotes(record),
+  };
+}
+
+function normalizeHighValueQuote(item) {
+  if (typeof item === "string") {
+    return { quote: trimQuoteText(item) };
+  }
+
+  const value = normalizeObject(item);
+  return {
+    time: normalizeText(value.time || value.timestamp),
+    speaker: normalizeText(value.speaker || value.role),
+    quote: trimQuoteText(value.quote || value.text || value.content || value.original || value.sentence),
+    reason: normalizeText(value.reason || value.value || value.note),
+  };
+}
+
+function inferHighValueQuotes(record) {
+  const segments = Array.isArray(record && record.segments) ? record.segments : [];
+  const candidates = segments.length
+    ? segments.map((segment, index) => ({
+      time: typeof segment.start === "number" ? formatQuoteClock(segment.start) : "",
+      speaker: normalizeText(segment.speaker) || "Speaker A",
+      quote: trimQuoteText(segment.text),
+      score: quoteValueScore(segment.text, index),
+    }))
+    : splitTranscriptLines(record && (record.transcript || record.content)).map((line, index) => ({
+      time: "",
+      speaker: "Speaker A",
+      quote: trimQuoteText(line),
+      score: quoteValueScore(line, index),
+    }));
+
+  return candidates
+    .filter((item) => item.quote && item.quote.length >= 12)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map((item) => ({
+      time: item.time,
+      speaker: item.speaker,
+      quote: item.quote,
+      reason: "从课堂原文中提取的关键表达",
+    }));
+}
+
+function quoteValueScore(text, index) {
+  const value = normalizeText(text);
+  let score = Math.max(0, 120 - Math.abs(value.length - 42));
+  if (/[。！？；]/.test(value)) score += 8;
+  if (/重点|关键|注意|结论|定义|公式|所以|因此|也就是说|如果|那么|因为|第一|第二|我们来看/.test(value)) score += 36;
+  if (/同学|作业|考试|容易错|不要|一定/.test(value)) score += 18;
+  return score - index * 0.5;
+}
+
+function trimQuoteText(text) {
+  const value = normalizeText(text).replace(/^["“”'‘’]+|["“”'‘’]+$/g, "");
+  return value.length <= 96 ? value : `${value.slice(0, 96)}...`;
+}
+
+function splitTranscriptLines(text) {
+  const value = normalizeText(text);
+  if (!value) return [];
+  return (value.match(/[^。！？!?；;]+[。！？!?；;]?/g) || [value])
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function formatQuoteClock(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  const min = Math.floor(total / 60);
+  const sec = total % 60;
+  return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
 async function requestFineTranscription(store, record) {

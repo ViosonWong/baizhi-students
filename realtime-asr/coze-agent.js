@@ -459,6 +459,14 @@ function artifactSchemaText(task) {
         text: "阶段内容摘要",
       },
     ],
+    highValueQuotes: [
+      {
+        time: "00:00",
+        speaker: "Speaker A",
+        quote: "课堂中值得原样保留的一句话，不要改写",
+        reason: "30字以内说明为什么值得复盘",
+      },
+    ],
     terms: [
       {
         term: "12字以内术语",
@@ -466,7 +474,7 @@ function artifactSchemaText(task) {
       },
     ],
     openQuestions: ["30字以内仍需追问的问题"],
-    constraints: "keyPoints 3-4条；timeline 1-3条；terms 2-4个；openQuestions 1-3条；不要输出 Markdown",
+    constraints: "keyPoints 3-4条；timeline 1-3条；highValueQuotes 2-3条，必须从课堂原文摘取原话，quote不要改写；terms 2-4个；openQuestions 1-3条；不要输出 Markdown",
   });
 }
 
@@ -749,12 +757,16 @@ function stringifyArtifactForChat(artifact, task) {
   }
 
   const points = Array.isArray(artifact.keyPoints) ? artifact.keyPoints : [];
+  const quotes = Array.isArray(artifact.highValueQuotes) ? artifact.highValueQuotes : [];
   return [
     artifact.title || "智能总结",
     "",
     artifact.overview || "",
     "",
     ...points.map((item) => `- ${item.title || "知识点"}：${item.detail || ""}`),
+    ...(quotes.length
+      ? ["", "课堂高价值原话：", ...quotes.slice(0, 3).map((item) => `- ${item.time || ""}${item.speaker ? ` ${item.speaker}` : ""}：${item.quote || item.text || ""}`)]
+      : []),
   ].filter(Boolean).join("\n");
 }
 

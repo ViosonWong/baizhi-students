@@ -1908,10 +1908,10 @@
       return reviewArtifactHtml(artifact);
     }
 
-    return summaryArtifactHtml(artifact);
+    return summaryArtifactHtml(artifact, record);
   }
 
-  function summaryArtifactHtml(artifact) {
+  function summaryArtifactHtml(artifact, record) {
     var keyPoints = toArray(artifact.keyPoints).slice(0, 4);
     var terms = toArray(artifact.terms).slice(0, 4);
     var questions = toArray(artifact.openQuestions).slice(0, 3);
@@ -1964,8 +1964,123 @@
             return '<article><strong>' + esc((item.time || "") + (item.speaker ? " · " + item.speaker : "")) + '</strong><p>' + esc(item.text || item.summary || "") + '</p></article>';
           }).join("") +
         '</section>' +
+        highValueQuotesHtml(artifact, record) +
       '</div>' +
     '</div>';
+  }
+
+  function highValueQuotesHtml(artifact, record) {
+    var quotes = highValueQuotesForSummary(artifact, record).slice(0, 3);
+    if (!quotes.length) {
+      return "";
+    }
+
+    return '<section class="bz-high-value-quotes">' +
+      '<header><span>课堂高价值原话</span><strong>适合复盘时反复看</strong></header>' +
+      '<div>' + quotes.map(function(item) {
+        var meta = [item.time, item.speaker].filter(Boolean).join(" · ");
+        return '<article>' +
+          (meta ? '<small>' + esc(meta) + '</small>' : '') +
+          '<p>“' + esc(item.quote || item.text || item.content || "") + '”</p>' +
+          (item.reason ? '<em>' + esc(item.reason) + '</em>' : '') +
+        '</article>';
+      }).join("") + '</div>' +
+    '</section>';
+  }
+
+  function highValueQuotesForSummary(artifact, record) {
+    var explicit = toArray(
+      artifact.highValueQuotes ||
+      artifact.classroomQuotes ||
+      artifact.originalQuotes ||
+      artifact.valuableQuotes
+    ).map(normalizeHighValueQuote).filter(function(item) {
+      return item.quote;
+    });
+
+    if (explicit.length) {
+      return explicit;
+    }
+
+    var evidenceQuotes = toArray(artifact.keyPoints).map(function(item) {
+      if (!item || typeof item !== "object" || !item.evidence) {
+        return null;
+      }
+      return normalizeHighValueQuote({
+        quote: item.evidence,
+        reason: item.title ? "对应知识点：" + item.title : "",
+      });
+    }).filter(function(item) {
+      return item && item.quote;
+    });
+
+    if (evidenceQuotes.length) {
+      return evidenceQuotes;
+    }
+
+    return inferHighValueQuotes(record);
+  }
+
+  function normalizeHighValueQuote(item) {
+    if (typeof item === "string") {
+      return { quote: trimQuoteText(item) };
+    }
+    item = item || {};
+    return {
+      quote: trimQuoteText(item.quote || item.text || item.content || item.original || item.sentence || ""),
+      speaker: item.speaker || item.role || "",
+      time: item.time || item.timestamp || "",
+      reason: item.reason || item.value || item.note || "",
+    };
+  }
+
+  function inferHighValueQuotes(record) {
+    var segments = normalizeSpeakerSegments(record && record.segments ? record.segments : []);
+    var candidates = segments.length ? segments.map(function(segment, index) {
+      return {
+        quote: trimQuoteText(segment.text || ""),
+        speaker: speakerLabel(segment),
+        time: segment && typeof segment.start === "number" ? formatClock(Math.round(segment.start)) : "",
+        score: quoteValueScore(segment.text || "", index),
+      };
+    }) : splitTranscriptLines(record && (record.transcript || record.content || "")).map(function(line, index) {
+      return {
+        quote: trimQuoteText(line),
+        speaker: defaultSpeakerLabel(),
+        time: "",
+        score: quoteValueScore(line, index),
+      };
+    });
+
+    return candidates.filter(function(item) {
+      return item.quote && item.quote.length >= 12;
+    }).sort(function(a, b) {
+      return b.score - a.score;
+    }).slice(0, 3).map(function(item) {
+      return {
+        quote: item.quote,
+        speaker: item.speaker,
+        time: item.time,
+        reason: "小智从课堂原文中挑出的关键表达",
+      };
+    });
+  }
+
+  function quoteValueScore(text, index) {
+    var value = String(text || "");
+    var score = Math.max(0, 120 - Math.abs(value.length - 42));
+    if (/[。！？；]/.test(value)) score += 8;
+    if (/重点|关键|注意|结论|定义|公式|所以|因此|也就是说|如果|那么|因为|第一|第二|我们来看/.test(value)) score += 36;
+    if (/同学|作业|考试|容易错|不要|一定/.test(value)) score += 18;
+    return score - index * 0.5;
+  }
+
+  function trimQuoteText(text) {
+    var value = String(text || "").replace(/\s+/g, " ").replace(/^["“”'‘’]+|["“”'‘’]+$/g, "").trim();
+    if (value.length <= 96) {
+      return value;
+    }
+    return value.slice(0, 96) + "...";
   }
 
   function quizArtifactHtml(artifact) {
@@ -2854,8 +2969,8 @@
       ".bz-audio-records-panel{position:relative;border-bottom:1px solid var(--line,#e5e7eb);padding-bottom:14px;margin-bottom:10px}.bz-audio-record-card{position:relative}.bz-audio-record-card .mini-note{padding-right:42px}.bz-audio-record-card .mini-note strong{overflow-wrap:anywhere}.bz-audio-delete{position:absolute;top:16px;right:16px;z-index:3;display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;background:#0f11100d;color:#737a76;opacity:0;transform:translateY(-3px) scale(.94);cursor:pointer;transition:opacity .18s ease,transform .18s ease,background .18s ease,color .18s ease}.bz-audio-delete svg{width:17px;height:17px}.bz-audio-record-card:hover .bz-audio-delete,.bz-audio-record-card:focus-within .bz-audio-delete{opacity:1;transform:translateY(0) scale(1)}.bz-audio-delete:hover{background:#0f1110;color:#fff}.bz-audio-list-toast{position:absolute;left:18px;right:18px;bottom:8px;z-index:5;padding:9px 12px;border-radius:12px;background:#fff2f0;color:#b42318;font-size:12px;font-weight:800;box-shadow:0 10px 24px -14px #0f111059}.bz-audio-player{flex-shrink:0}.bz-audio-transcript{overflow:auto}.bz-note-title-block{min-width:0;flex:1}.bz-lesson-meta-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;max-width:100%}.bz-lesson-meta-chips span{display:inline-flex;align-items:center;gap:5px;max-width:220px;padding:5px 10px;border:1px solid rgba(168,212,0,.36);border-radius:999px;background:#f8ffdb;color:#4e6a00;font-size:12px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bz-lesson-meta-chips strong{color:#6b7400;font-weight:850}.bz-audio-speaker-list p strong{display:inline-block;margin-right:10px;color:#5f8c00;font-weight:800;white-space:nowrap}.bz-audio-empty{padding:18px;border:1px dashed var(--line,#e5e7eb);border-radius:14px;color:var(--muted,#6b7280)}" +
       ".bz-publish-entry{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}.bz-publish-entry svg{width:16px;height:16px}.bz-publish-backdrop{z-index:9999}.bz-publish-modal{max-height:calc(100vh - 48px);overflow:auto}.bz-publish-modal .primary-action:disabled{opacity:.45;cursor:not-allowed}" +
       ".bz-online-empty.is-error p{color:#b42318}.bz-online-empty.is-loading{min-height:380px}.bz-online-empty.is-loading .note-empty-icon{animation:bzArtifactIconFloat 1.8s ease-in-out infinite}.bz-online-empty.is-loading .note-empty-icon svg{animation:bzArtifactIconTilt 1.8s ease-in-out infinite}.bz-loading-dots{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:18px;margin-top:4px}.bz-loading-dots i{display:block;width:7px;height:7px;border-radius:50%;background:#9aa0a6;opacity:.42;animation:bzArtifactDot 1.05s ease-in-out infinite}.bz-loading-dots i:nth-child(2){animation-delay:.14s}.bz-loading-dots i:nth-child(3){animation-delay:.28s}@keyframes bzArtifactIconFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}@keyframes bzArtifactIconTilt{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(4deg)}}@keyframes bzArtifactDot{0%,80%,100%{transform:translateY(0);opacity:.34}40%{transform:translateY(-5px);opacity:1}}" +
-      ".note-empty-action svg{width:16px;height:16px}.note-empty-icon svg{width:26px;height:26px}.bz-generated-wrap{min-width:0}.bz-generated-wrap .regenerate-bar button svg{width:13px;height:13px}.bz-generated-wrap .summary-hero h3{overflow-wrap:anywhere}.bz-generated-wrap .formula-card span{overflow-wrap:anywhere}.bz-generated-wrap .review-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bz-exam-options{margin:2px 0 0;padding-left:22px;color:var(--ink,#0f1110);font-size:13px;line-height:1.68}.bz-exam-options li{margin:3px 0}.bz-answer-line{color:#5f8c00!important;font-weight:800}.bz-review-board{padding:0}.do-exercise-btn{border:0}.do-exercise-btn span{line-height:1}" +
-      "@media(max-width:720px){.bz-confirm-actions{flex-direction:column-reverse}.bz-confirm-actions button{width:100%}.bz-confirm-audio{align-items:flex-start;flex-direction:column}.bz-confirm-audio audio{width:100%}.bz-asr-old-recorder{min-height:calc(100vh - 120px)}.bz-asr-old-recorder .live-transcript{max-height:38vh}}";
+      ".note-empty-action svg{width:16px;height:16px}.note-empty-icon svg{width:26px;height:26px}.bz-generated-wrap{min-width:0}.bz-generated-wrap .regenerate-bar button svg{width:13px;height:13px}.bz-generated-wrap .summary-hero h3{overflow-wrap:anywhere}.bz-generated-wrap .formula-card span{overflow-wrap:anywhere}.bz-generated-wrap .review-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bz-high-value-quotes{display:grid;gap:12px;padding:18px;border:1px solid rgba(168,212,0,.38);border-radius:18px;background:linear-gradient(180deg,#ffffff,#fbfff0);box-shadow:0 10px 28px -22px rgba(95,140,0,.55)}.bz-high-value-quotes header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.bz-high-value-quotes header span{font-size:16px;font-weight:850;letter-spacing:0;color:var(--ink,#0f1110)}.bz-high-value-quotes header strong{font-size:12px;font-weight:800;color:#6aa800;white-space:nowrap}.bz-high-value-quotes>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.bz-high-value-quotes article{min-width:0;padding:12px 13px;border-radius:14px;background:#fff;border:1px solid rgba(15,17,16,.08)}.bz-high-value-quotes small{display:block;margin-bottom:7px;color:#7d981e;font-size:11px;font-weight:800}.bz-high-value-quotes p{margin:0;color:var(--ink,#0f1110);font-size:13px;font-weight:700;line-height:1.65;overflow-wrap:anywhere}.bz-high-value-quotes em{display:block;margin-top:8px;color:#8a918c;font-size:11.5px;font-style:normal;line-height:1.45}.bz-exam-options{margin:2px 0 0;padding-left:22px;color:var(--ink,#0f1110);font-size:13px;line-height:1.68}.bz-exam-options li{margin:3px 0}.bz-answer-line{color:#5f8c00!important;font-weight:800}.bz-review-board{padding:0}.do-exercise-btn{border:0}.do-exercise-btn span{line-height:1}" +
+      "@media(max-width:720px){.bz-confirm-actions{flex-direction:column-reverse}.bz-confirm-actions button{width:100%}.bz-confirm-audio{align-items:flex-start;flex-direction:column}.bz-confirm-audio audio{width:100%}.bz-asr-old-recorder{min-height:calc(100vh - 120px)}.bz-asr-old-recorder .live-transcript{max-height:38vh}.bz-high-value-quotes>div{grid-template-columns:1fr}.bz-high-value-quotes header{display:grid;gap:4px}}";
     document.head.appendChild(style);
     return;
     style.textContent =
