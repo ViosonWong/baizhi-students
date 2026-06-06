@@ -3,6 +3,7 @@
 Before making any UI, demo, deployment, or build-related change in this repo, read and follow:
 
 - `docs/ITERATION_SPEC.md`
+- `docs/UI_FRONTEND_SPEC.md` for UI and frontend component work
 
 Non-negotiable defaults:
 
@@ -13,4 +14,3 @@ Non-negotiable defaults:
 - Do not commit `dist/`, `dist-singlefile/`, temporary screenshots, or legacy static HTML changes unless explicitly requested.
 - Run `npm run build` after source or deployment changes.
 - Run `npm run build:single` when producing or validating a demo artifact.
-

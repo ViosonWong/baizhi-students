@@ -2,6 +2,12 @@
 
 This spec defines how future changes should be designed, implemented, verified, committed, and shipped.
 
+For UI and frontend component rules, also read:
+
+```text
+docs/UI_FRONTEND_SPEC.md
+```
+
 ## 1. Core Principle
 
 All page and interaction work must start from source code.
