@@ -173,36 +173,201 @@ Token rules:
 
 ## 5. Typography
 
-Font stack:
+### 5.1 Font Stack
 
 ```css
 Inter, PingFang SC, HarmonyOS Sans SC, Hiragino Sans GB,
 Microsoft YaHei, -apple-system, BlinkMacSystemFont, sans-serif
 ```
 
-Global text:
+Rules:
+
+- Keep this stack as the default for all app UI.
+- Do not introduce page-specific display fonts unless the request explicitly
+  needs campaign/brand treatment.
+- Keep `font-feature-settings: "ss01", "cv11", "tnum"` on the root. Tabular
+  numbers matter for timers, credits, prices, and durations.
+- Use `font: inherit` for buttons, inputs, selects, and textareas so controls
+  stay visually integrated.
+
+### 5.2 Global Text Defaults
 
 - Base size: `14px`
 - Base line-height: `1.55`
+- Base letter spacing: `-.005em`
 - Main text color: `--ink`
 - Secondary text: `--muted`
 - Hint text: `--hint`
+- Font smoothing: `-webkit-font-smoothing: antialiased`
+- Rendering: `text-rendering: optimizeLegibility`
 
-Type hierarchy:
+Do not change global text defaults to solve a local component issue. Fix the
+component instead.
 
-- App/topbar title: about `28px`, strong weight, tight line-height.
-- Hero display line: large, expressive, only on the home dashboard.
-- Section headers: compact, usually paired with a small description.
-- Card titles: `13px` to `18px`, depending on card size.
-- Labels/meta: `10px` to `12px`, often bold or uppercase.
+### 5.3 Size Scale
 
-Typography rules:
+Use this scale before adding new sizes:
 
-- Do not use viewport-width scaled text.
-- Keep letter spacing at `0` or slightly positive for labels. Avoid aggressive
-  negative tracking in compact controls.
-- Chinese UI copy should be short and action-oriented.
-- Use friendly learning language, but keep system/status messages precise.
+```text
+8.5px   Micro tags in very dense marketplace cards only
+9px     Tiny marks, superscript references, tiny badges
+9.5px   Dense card descriptions with strict line clamps
+10px    Metadata, compact tags, shelf/book secondary labels
+10.5px  Compact buttons inside dense cards
+11px    Nav labels, hints, context labels, small tool labels
+11.5px  Secondary chip text and compact panel text
+12px    Normal labels, filters, tab labels, small body text
+12.5px  Compact body text in XiaoZhi and dense panels
+13px    Compact titles, chat content, market card text
+13.5px  Standard button text
+14px    Default body and normal UI text
+14.5px  Slightly emphasized body text
+15px    Small stats and dense section values
+16px    Card titles, CTA labels, important values
+17px    Large card titles when space allows
+18px    Panel section headings and modal subheads
+20px    Key numbers or secondary headings
+22px    Larger panel headings
+24px    Hero sub-emphasis or major stats
+26px    Large display fragments
+28px    App/topbar title
+30px    Large numeric/visual emphasis
+32px    Modal or hero heading when needed
+34px    Rare large heading
+40px    Rare display number or hero accent
+56px    Home dashboard hero display only
+```
+
+Default mapping:
+
+| Use Case | Size | Weight | Line Height | Letter Spacing |
+| --- | ---: | ---: | ---: | ---: |
+| App/topbar title | `28px` | `750` | `1.15` | `-.025em` |
+| Home hero lead | `clamp(30px, 3.2vw, 40px)` | `800` | `1.05-1.12` | `-.03em` |
+| Section heading | `18-22px` | `750-800` | `1.2-1.35` | `-.02em` |
+| Card title | `13-18px` | `750-850` | `1.25-1.45` | `-.01em` |
+| Normal body | `14px` | `400-600` | `1.55-1.7` | `-.005em` |
+| Dense body | `12.5-13px` | `400-600` | `1.55-1.65` | `0` |
+| Button label | `13.5px` | `700` | `1` | `-.005em` |
+| Nav label | `11px` | `600` | `1.2` | `0` |
+| Filter/tab label | `12px` | `700` | `1.2-1.4` | `0-.02em` |
+| Meta label | `10-11.5px` | `600-800` | `1.1-1.5` | `.02-.08em` |
+| Tiny badge | `8.5-10px` | `700-800` | `1` | `0-.02em` |
+| Timer/duration/price | `13-20px` | `700-800` | `1-1.2` | `-.01em` |
+
+Size rules:
+
+- Do not use viewport-width scaled text except the current home hero
+  `clamp(30px, 3.2vw, 40px)` pattern.
+- Do not add new fractional sizes unless there is a dense component conflict.
+- Avoid body text below `12px`. Use `10-11px` only for metadata, badges, and
+  helper labels.
+- Keep primary action text at `13.5-16px`; do not make buttons hero-sized.
+- In compact cards, reduce line count before shrinking text below the scale.
+
+### 5.4 Font Weight
+
+Use the current weight ladder:
+
+```text
+400  Body copy, paragraphs, transcript text
+500  Secondary body or lightweight form text
+600  Labels, nav labels, small controls
+700  Standard button labels, tabs, metadata emphasis
+750  App titles and card titles
+760  Special dense title emphasis
+800  Strong values, active labels, key UI words
+850  Hero/card display titles
+900  Rare oversized numeric or display emphasis
+```
+
+Weight rules:
+
+- Prefer `700` and `800` for this product. They are the dominant visual weights.
+- Use `750` for titles when `800` feels too heavy.
+- Do not use many different weights inside one compact card.
+- Do not use light weights for important actions or state labels.
+
+### 5.5 Line Height
+
+Recommended line heights:
+
+```text
+1       Icon buttons, badges, tight numeric values
+1.1     Large values and compact stats
+1.15    App title / tight headings
+1.2     Nav labels and button-adjacent labels
+1.25    Card titles
+1.35    Section headings and compact titles
+1.45    Multi-line card titles
+1.55    Default UI body
+1.6     XiaoZhi and modal body
+1.65    Transcript and dense explanatory text
+1.7     Longer learning descriptions
+1.75    Rare long-form reading blocks
+```
+
+Line-height rules:
+
+- Use tighter line-height for titles, looser line-height for Chinese body copy.
+- Transcript, AI answers, and learning explanations should be at least `1.6`.
+- Do not use `line-height: 1` for Chinese paragraphs.
+
+### 5.6 Letter Spacing
+
+Current UI uses restrained tracking. Use this range:
+
+```text
+-.04em   Rare oversized numbers or display text only
+-.03em   Hero/display headings
+-.025em  App title and major headings
+-.02em   Section headings and important values
+-.01em   Card titles, prices, compact emphasis
+-.005em  Global body and standard buttons
+0        Default for most Chinese labels and compact controls
+.01em    Mild emphasis on small controls
+.02em    Tags, prices, compact labels
+.04em    Metadata, secondary labels
+.06em    Citation labels or technical metadata
+.08em    Uppercase-ish labels
+.12em    Rare eyebrow/pill labels only
+```
+
+Letter-spacing rules:
+
+- Chinese body copy should usually be `0` to `-.005em`.
+- Do not use negative tracking below `-.04em`.
+- Do not use positive tracking above `.12em`.
+- Avoid negative tracking inside small buttons, nav labels, filters, and form
+  controls. Use `0` or slight positive tracking instead.
+- Use positive tracking only for metadata, eyebrow labels, uppercase-like tags,
+  and small status text.
+- If text looks cramped, first increase container width or line-height before
+  tightening letter spacing.
+
+### 5.7 Numbers And Mixed Text
+
+Rules:
+
+- Use tabular numbers for timers, prices, credits, durations, and counts.
+- Durations use compact numeric treatment: `00:20:26`, `34min24s`, `1x`.
+- Prices and credits should keep number and unit together: `30 积分`,
+  `￥136`, `324`.
+- Mixed Chinese/English labels should keep the English token short:
+  `AI 笔记`, `XiaoZhi`, `WebSearch`.
+- Avoid long English phrases in visible UI unless they are API/product names.
+
+### 5.8 Text Overflow
+
+Rules:
+
+- Single-line metadata should use `white-space: nowrap`, `overflow: hidden`,
+  and `text-overflow: ellipsis`.
+- Card titles may use two to four line clamps depending on card height.
+- Dense marketplace descriptions should clamp to two lines.
+- Buttons must not wrap awkwardly. Shorten the copy before shrinking text below
+  the defined scale.
+- Never allow text to overlap icons, badges, or adjacent content.
 
 ## 6. Core Components
 
